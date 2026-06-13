@@ -548,17 +548,6 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <button class="config-save" onclick="saveConfig()">저장 &amp; 로드</button>
   </div>
 
-  <div class="setup-guide" id="invest-setup">
-    <h3>⚡ GitHub Issues 연동 방법</h3>
-    <ul class="setup-steps">
-      <li><span class="step-num">01</span> GitHub에 새 repo 생성 (예: <code>my-insights</code>) — Public 권장</li>
-      <li><span class="step-num">02</span> repo → Labels 탭에서 라벨 생성: <code>investment</code>, <code>blog</code>, <code>watch</code>, <code>idea</code></li>
-      <li><span class="step-num">03</span> Issues 탭 → 새 Issue 작성 → 라벨 <code>investment</code> 부착</li>
-      <li><span class="step-num">04</span> 위 입력창에 GitHub username과 repo명 입력 → "저장 &amp; 로드"</li>
-      <li><span class="step-num">05</span> 이 파일을 <code>index.html</code>로 GitHub Pages 배포 (Settings → Pages → main/root)</li>
-    </ul>
-  </div>
-
   <div class="stats-bar" id="invest-stats" style="display:none">
     <div class="stat-item"><div class="stat-label">전체 인사이트</div><div class="stat-val blue" id="stat-total">–</div></div>
     <div class="stat-item"><div class="stat-label">Watch 종목</div><div class="stat-val green" id="stat-watch">–</div></div>
@@ -589,17 +578,6 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <span style="color:var(--muted);flex-shrink:0">/</span>
     <input type="text" id="gh-repo-b" placeholder="my-insights">
     <button class="config-save" onclick="saveConfigBlog()">저장 &amp; 로드</button>
-  </div>
-
-  <div class="setup-guide" id="blog-setup">
-    <h3>✍️ 블로그 포스팅 인사이트 활용법</h3>
-    <ul class="setup-steps">
-      <li><span class="step-num">01</span> 투자 인사이트와 동일 repo 사용 가능 (라벨만 다르게)</li>
-      <li><span class="step-num">02</span> 라벨 <code>blog</code>: 포스팅 초안 &amp; 아이디어 메모</li>
-      <li><span class="step-num">03</span> 라벨 <code>idea</code>: 키워드 리서치 / 트렌드 메모</li>
-      <li><span class="step-num">04</span> Issue 닫기(Close) = 포스팅 완료 처리</li>
-      <li><span class="step-num">05</span> 세모글 포스팅 아이디어를 GitHub Issues로 체계 관리</li>
-    </ul>
   </div>
 
   <div class="section-hd">
@@ -1089,9 +1067,8 @@ async function loadInsights(type, owner, repo) {
     document.getElementById(countId).textContent = issues.length;
     if (type === 'invest') {
       renderInvestStats(issues);
-      document.getElementById('invest-setup').style.display = 'none';
     } else {
-      document.getElementById('blog-setup').style.display = 'none';
+      // blog
     }
 
     if (!issues.length) {
