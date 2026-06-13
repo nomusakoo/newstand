@@ -451,27 +451,28 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 /* ─── 필터 행 접기/펴기 ──────────────────────────────────── */
 .filter-section{
   display:flex;align-items:flex-start;gap:6px;width:100%;
-  transition:margin .3s cubic-bezier(.4,0,.2,1);
 }
-.filter-section.folded{margin-bottom:-2px;}
 .fold-btn{
   flex-shrink:0;width:20px;height:20px;
   display:flex;align-items:center;justify-content:center;
   background:var(--panel);border:1px solid var(--border);border-radius:5px;
   color:var(--dim);font-size:11px;cursor:pointer;
-  transition:all .2s;margin-top:1px;
+  transition:all .2s;
 }
 .fold-btn:hover{color:var(--bright);border-color:var(--muted);}
 .fold-btn.folded{color:var(--accent);border-color:var(--accent);background:rgba(79,138,255,.08);}
+/* 키워드 행 접기 — 위로 슬라이드 + 높이 0 */
 .filter-row-wrap{
   overflow:hidden;
-  max-height:120px;
-  transition:max-height .32s cubic-bezier(.4,0,.2,1), opacity .25s ease;
-  opacity:1;flex:1;
+  max-height:80px;
+  transition:max-height .32s cubic-bezier(.4,0,.2,1), opacity .25s ease, margin .3s ease;
+  opacity:1;
+  margin-bottom:0;
 }
 .filter-row-wrap.folded{
   max-height:0;
   opacity:0;
+  margin-bottom:-6px;
 }
 .filter-row{display:flex;gap:6px;flex-wrap:wrap;}
 @media(max-width:640px){
@@ -620,49 +621,45 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 <section class="tab-panel active" id="tab-news">
 
   <div class="toolbar">
-    <!-- 발행사 필터 -->
-    <div class="filter-section">
-      <button class="fold-btn" id="fold-source" onclick="toggleFold('source')" title="접기">–</button>
-      <div class="filter-row-wrap" id="wrap-source">
-        <div class="filter-row" id="source-filters">
-          <button class="filter-btn active" data-source="all">전체</button>
-          <button class="filter-btn" data-source="연합-최신">연합-최신</button>
-          <button class="filter-btn" data-source="연합-정치">연합-정치</button>
-          <button class="filter-btn" data-source="연합-경제">연합-경제</button>
-          <button class="filter-btn" data-source="연합-마켓">연합-마켓</button>
-          <button class="filter-btn" data-source="연합-산업">연합-산업</button>
-          <button class="filter-btn" data-source="연합-사회">연합-사회</button>
-          <button class="filter-btn" data-source="연합-세계">연합-세계</button>
-          <button class="filter-btn" data-source="연합-문화">연합-문화</button>
-          <button class="filter-btn" data-source="연합-건강">연합-건강</button>
-          <button class="filter-btn" data-source="한국경제">한국경제</button>
-          <button class="filter-btn" data-source="매일경제">매일경제</button>
-          <button class="filter-btn" data-source="매일노동뉴스">매일노동뉴스</button>
-        </div>
-      </div>
+    <!-- 발행사 필터 (접기 없음) -->
+    <div class="filter-row" id="source-filters">
+      <button class="filter-btn active" data-source="all">전체</button>
+      <button class="filter-btn" data-source="연합-최신">연합-최신</button>
+      <button class="filter-btn" data-source="연합-정치">연합-정치</button>
+      <button class="filter-btn" data-source="연합-경제">연합-경제</button>
+      <button class="filter-btn" data-source="연합-마켓">연합-마켓</button>
+      <button class="filter-btn" data-source="연합-산업">연합-산업</button>
+      <button class="filter-btn" data-source="연합-사회">연합-사회</button>
+      <button class="filter-btn" data-source="연합-세계">연합-세계</button>
+      <button class="filter-btn" data-source="연합-문화">연합-문화</button>
+      <button class="filter-btn" data-source="연합-건강">연합-건강</button>
+      <button class="filter-btn" data-source="한국경제">한국경제</button>
+      <button class="filter-btn" data-source="매일경제">매일경제</button>
+      <button class="filter-btn" data-source="매일노동뉴스">매일노동뉴스</button>
     </div>
-    <!-- 키워드 필터 -->
+    <!-- 키워드 필터 + 새로고침 버튼 -->
     <div class="filter-divider"></div>
-    <div class="filter-section">
-      <button class="fold-btn" id="fold-keyword" onclick="toggleFold('keyword')" title="접기">–</button>
-      <div class="filter-row-wrap" id="wrap-keyword">
-        <div class="filter-row" id="keyword-filters">
-          <button class="filter-btn keyword-btn active" data-keyword="all">전체</button>
-          <button class="filter-btn keyword-btn" data-keyword="노동">노동</button>
-          <button class="filter-btn keyword-btn" data-keyword="기술">기술</button>
-          <button class="filter-btn keyword-btn" data-keyword="주식">주식</button>
-          <button class="filter-btn keyword-btn" data-keyword="부동산">부동산</button>
-          <button class="filter-btn keyword-btn" data-keyword="경제">경제</button>
-          <button class="filter-btn keyword-btn" data-keyword="사회">사회</button>
-          <button class="filter-btn keyword-btn" data-keyword="건강">건강</button>
-          <button class="filter-btn keyword-btn" data-keyword="문화">문화</button>
-          <button class="filter-btn keyword-btn" data-keyword="정치">정치</button>
-          <button class="filter-btn keyword-btn" data-keyword="글로벌">글로벌</button>
+    <div style="display:flex;align-items:center;gap:6px;width:100%;">
+      <!-- 키워드 접기/펴기 래퍼 -->
+      <div style="flex:1;overflow:hidden;">
+        <div class="filter-row-wrap" id="wrap-keyword">
+          <div class="filter-row" id="keyword-filters">
+            <button class="filter-btn keyword-btn active" data-keyword="all">전체</button>
+            <button class="filter-btn keyword-btn" data-keyword="노동">노동</button>
+            <button class="filter-btn keyword-btn" data-keyword="기술">기술</button>
+            <button class="filter-btn keyword-btn" data-keyword="주식">주식</button>
+            <button class="filter-btn keyword-btn" data-keyword="부동산">부동산</button>
+            <button class="filter-btn keyword-btn" data-keyword="경제">경제</button>
+            <button class="filter-btn keyword-btn" data-keyword="사회">사회</button>
+            <button class="filter-btn keyword-btn" data-keyword="건강">건강</button>
+            <button class="filter-btn keyword-btn" data-keyword="문화">문화</button>
+            <button class="filter-btn keyword-btn" data-keyword="정치">정치</button>
+            <button class="filter-btn keyword-btn" data-keyword="글로벌">글로벌</button>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="toolbar-right">
-      <button class="refresh-btn" id="news-refresh-btn" onclick="loadAllNews(true)">
+      <!-- 새로고침 버튼 (키워드 줄 오른쪽 끝) -->
+      <button class="refresh-btn" id="news-refresh-btn" onclick="loadAllNews(true)" style="flex-shrink:0;">
         <svg id="refresh-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="23 4 23 10 17 10"/>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -676,6 +673,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <h2 id="news-section-title">📰 최신뉴스</h2>
     <span class="count" id="news-count">0</span>
     <span class="last-updated" id="news-updated"></span>
+    <button class="fold-btn" id="fold-keyword" onclick="toggleFold('keyword')" title="키워드 접기" style="margin-left:auto;">–</button>
   </div>
   <div class="news-grid" id="news-grid">
     <div class="state-box" style="grid-column:1/-1">
@@ -1831,21 +1829,19 @@ async function refreshFromLogo() {
   spinner.classList.remove('active');
 }
 
-/* ── 필터 접기/펴기 ──────────────────────────────────────── */
-const foldState = {source: false, keyword: false};
-function toggleFold(type) {
-  foldState[type] = !foldState[type];
-  const wrap = document.getElementById(`wrap-${type}`);
-  const btn  = document.getElementById(`fold-${type}`);
-  const sec  = btn.closest('.filter-section');
-  wrap.classList.toggle('folded', foldState[type]);
-  btn.classList.toggle('folded', foldState[type]);
-  sec.classList.toggle('folded', foldState[type]);
-  btn.textContent = foldState[type] ? '+' : '–';
-  btn.title = foldState[type] ? '펼치기' : '접기';
-  // 둘 다 접히면 divider도 숨김
-  const divider = document.querySelector('.filter-divider');
-  if (divider) divider.classList.toggle('folded-both', foldState.source && foldState.keyword);
+/* ── 키워드 필터 접기/펴기 ───────────────────────────────── */
+let keywordFolded = false;
+function toggleFold() {
+  keywordFolded = !keywordFolded;
+  const wrap = document.getElementById('wrap-keyword');
+  const btn  = document.getElementById('fold-keyword');
+  const div  = document.querySelector('.filter-divider');
+  wrap.classList.toggle('folded', keywordFolded);
+  btn.classList.toggle('folded', keywordFolded);
+  btn.textContent = keywordFolded ? '+' : '–';
+  btn.title = keywordFolded ? '키워드 펼치기' : '키워드 접기';
+  // 구분선도 같이 숨김
+  if (div) div.style.display = keywordFolded ? 'none' : '';
 }
 
 function fetchFinanceWithTimeout(url, options = {}, ms = 8000) {
