@@ -439,6 +439,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <input type="password" id="lock-input"
       placeholder="비밀번호"
       autocomplete="new-password"
+      readonly
       onkeydown="if(event.key==='Enter')unlock()"
       style="
         background:var(--ink);border:1px solid var(--border);border-radius:6px;
@@ -1714,11 +1715,14 @@ function initApp() {
   } else {
     document.getElementById('lock-screen').style.display = 'flex';
     await getPwHash();
-    // 브라우저 자동완성이 채우기 전에 강제로 비우기
     const inp = document.getElementById('lock-input');
     inp.value = '';
-    setTimeout(() => { inp.value = ''; inp.focus(); }, 50);
-    setTimeout(() => { inp.value = ''; }, 200);
+    // readonly로 자동완성 차단 → 포커스 시점에 readonly 해제
+    setTimeout(() => {
+      inp.removeAttribute('readonly');
+      inp.value = '';
+      inp.focus();
+    }, 100);
   }
 })();
 </script>
