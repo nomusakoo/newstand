@@ -736,6 +736,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       </div>
     </div>
     <div class="modal-footer">
+      <span style="font-size:11px;color:var(--dim);margin-right:auto;">Ctrl+Enter 저장 · Esc 닫기</span>
       <button class="btn-cancel" onclick="closeModal()">취소</button>
       <button class="btn-submit" onclick="submitInsight()">저장</button>
     </div>
@@ -1189,8 +1190,8 @@ function renderNews() {
       : '';
     const titleHtml   = highlightKeyword(item.title,   currentKeyword);
     const snippetHtml = highlightKeyword(item.snippet, currentKeyword);
-    // escape for data attribute
-    const safeTitle = item.title.replace(/"/g,'&quot;');
+    // data 속성용 escape — 큰따옴표만 처리하면 됨 (HTML attribute)
+    const safeTitle = item.title.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeLink  = encodeURIComponent(item.link);
     return `
     <div class="news-card ${rankCls}">
@@ -1208,10 +1209,16 @@ function renderNews() {
         ${currentKeyword !== 'all' ? `<span class="tag keyword">${currentKeyword}</span>` : ''}
       </div>
       <div class="card-actions">
-        <button class="card-save-btn invest" onclick="openModalFromCard('investment','${safeTitle}','${safeLink}')">
+        <button class="card-save-btn invest"
+          data-type="investment"
+          data-title="${safeTitle}"
+          data-link="${safeLink}">
           📈 투자 인사이트로 저장
         </button>
-        <button class="card-save-btn blog" onclick="openModalFromCard('blog','${safeTitle}','${safeLink}')">
+        <button class="card-save-btn blog"
+          data-type="blog"
+          data-title="${safeTitle}"
+          data-link="${safeLink}">
           ✍️ 블로그 인사이트로 저장
         </button>
       </div>
@@ -1223,6 +1230,18 @@ function updateTicker() {
   const items = allNews.slice(0,18).map(n => `📰 ${n.source} · ${n.title}`);
   document.getElementById('ticker').innerHTML = items.map(t=>`<span>${t}</span>`).join('');
 }
+
+/* ── 뉴스카드 저장버튼 이벤트 위임 (모바일 호환) ─────────── */
+document.getElementById('news-grid').addEventListener('click', e => {
+  const btn = e.target.closest('.card-save-btn');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const type  = btn.dataset.type;
+  const title = btn.dataset.title || '';
+  const link  = btn.dataset.link  || '';
+  openModalFromCard(type, title, link);
+});
 
 /* ── FILTER EVENTS ───────────────────────────────────────── */
 document.getElementById('source-filters').addEventListener('click', e => {
@@ -1416,16 +1435,18 @@ function openModal(type) {
   setTimeout(() => document.getElementById('modal-input-title').focus(), 80);
 }
 
-function openModalFromCard(type, safeTitle, safeLink) {
-  const title = safeTitle.replace(/&quot;/g, '"');
-  const link  = decodeURIComponent(safeLink);
+function openModalFromCard(type, rawTitle, rawLink) {
+  // HTML 엔티티 디코딩 (data-* 속성에서 오는 경우 대응)
+  const title = (rawTitle || '')
+    .replace(/&quot;/g,'"').replace(/&amp;/g,'&')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  const link = rawLink ? decodeURIComponent(rawLink) : '';
   currentModalType = type;
   document.getElementById('modal-title').textContent = type === 'investment' ? '📈 투자 인사이트로 저장' : '✍️ 블로그 인사이트로 저장';
   document.getElementById('modal-input-label').value = type === 'investment' ? 'investment' : 'blog';
   document.getElementById('modal-input-title').value = title;
   document.getElementById('modal-input-body').value  = `메모:\n- `;
   document.getElementById('modal-input-tags').value  = '';
-  // source_url은 hidden으로 별도 보관
   document.getElementById('modal-overlay').dataset.sourceUrl = link;
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('modal-input-body').focus(), 80);
@@ -1437,6 +1458,15 @@ function closeModal() {
 }
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
+});
+
+// Ctrl+Enter 로 저장
+document.getElementById('modal-overlay').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    submitInsight();
+  }
+  if (e.key === 'Escape') closeModal();
 });
 
 async function submitInsight() {
@@ -1716,12 +1746,12 @@ function initApp() {
     await getPwHash();
     const inp = document.getElementById('lock-input');
     inp.value = '';
-    // readonly로 자동완성 차단 → 포커스 시점에 readonly 해제
+    // type=text로 렌더 → 자동완성 끼어들 틈 없이 password로 전환
     setTimeout(() => {
-      inp.removeAttribute('readonly');
+      inp.setAttribute('type', 'password');
       inp.value = '';
       inp.focus();
-    }, 100);
+    }, 50);
   }
 })();
 </script>
