@@ -1066,11 +1066,11 @@ async function fetchViaCorsProxy(url) {
   return parseXmlItems(await res.text());
 }
 
-/* ── RSS FETCH (Worker 우선 → 자동 폴백) ──────────────────── */
+/* ── RSS FETCH (Worker 우선 → 폴백 병렬 경쟁) ─────────────── */
 async function fetchFeed(feed, forceRefresh = false) {
   const cacheKey = `ns_feed_${btoa(encodeURIComponent(feed.url)).slice(0, 32)}`;
 
-  // localStorage 캐시 확인 (forceRefresh 시 건너뜀)
+  // localStorage 캐시 (forceRefresh 시 건너뜀)
   if (!forceRefresh) {
     try {
       const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
@@ -1080,35 +1080,30 @@ async function fetchFeed(feed, forceRefresh = false) {
     } catch {}
   }
 
-  // Worker 설정 시 Worker만 시도 (폴백 없이 빠르게)
-  // Worker 미설정 시 AllOrigins → corsproxy 순서
-  const strategies = WORKER_URL
-    ? [fetchViaWorker]
-    : [fetchViaAllOrigins, fetchViaCorsProxy];
+  const save = (items) => {
+    try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), items })); } catch {}
+    return items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
+  };
 
-  for (const fn of strategies) {
+  // Worker 설정 시 → Worker 먼저, 실패 시 병렬 폴백
+  if (WORKER_URL) {
     try {
-      const items = await fn(feed.url);
-      if (!items.length) continue;
-      try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), items })); } catch {}
-      return items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
+      const items = await fetchViaWorker(feed.url);
+      if (items.length) return save(items);
     } catch (e) {
-      console.warn(`[${feed.name}] ${fn.name} 실패:`, e.message);
-      // Worker 실패 시 폴백
-      if (fn === fetchViaWorker) {
-        for (const fallback of [fetchViaAllOrigins, fetchViaCorsProxy]) {
-          try {
-            const items = await fallback(feed.url);
-            if (!items.length) continue;
-            try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), items })); } catch {}
-            return items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
-          } catch (fe) {
-            console.warn(`[${feed.name}] ${fallback.name} 폴백 실패:`, fe.message);
-          }
-        }
-      }
+      console.warn(`[${feed.name}] Worker 실패:`, e.message);
     }
   }
+
+  // Worker 없거나 실패 → AllOrigins + corsproxy 병렬 경쟁
+  // 둘 중 먼저 성공한 결과를 사용
+  const items = await Promise.any([
+    fetchViaAllOrigins(feed.url),
+    fetchViaCorsProxy(feed.url),
+  ]).catch(() => []);
+
+  if (items.length) return save(items);
+
   console.error(`[${feed.name}] 모든 프록시 실패 — ${feed.url}`);
   return [];
 }
