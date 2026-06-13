@@ -526,11 +526,18 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <!-- 발행사 필터 -->
     <div class="filter-row" id="source-filters">
       <button class="filter-btn active" data-source="all">전체</button>
-      <button class="filter-btn" data-source="연합뉴스">연합뉴스</button>
+      <button class="filter-btn" data-source="연합-최신">연합-최신</button>
+      <button class="filter-btn" data-source="연합-정치">연합-정치</button>
+      <button class="filter-btn" data-source="연합-경제">연합-경제</button>
+      <button class="filter-btn" data-source="연합-마켓">연합-마켓</button>
+      <button class="filter-btn" data-source="연합-산업">연합-산업</button>
+      <button class="filter-btn" data-source="연합-사회">연합-사회</button>
+      <button class="filter-btn" data-source="연합-세계">연합-세계</button>
+      <button class="filter-btn" data-source="연합-문화">연합-문화</button>
+      <button class="filter-btn" data-source="연합-건강">연합-건강</button>
       <button class="filter-btn" data-source="한국경제">한국경제</button>
       <button class="filter-btn" data-source="매일경제">매일경제</button>
       <button class="filter-btn" data-source="매일노동뉴스">매일노동뉴스</button>
-
     </div>
     <!-- 키워드 필터 -->
     <div class="filter-divider"></div>
@@ -751,16 +758,25 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 <script>
 /* ── RSS FEEDS ─────────────────────────────────────────── */
 const RSS_FEEDS = [
-  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/economy.xml',    topic:'경제'},
-  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/politics.xml',   topic:'정치'},
-  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/society.xml',    topic:'사회'},
-  {name:'한국경제', url:'https://www.hankyung.com/feed/economy',     topic:'경제'},
-  {name:'한국경제', url:'https://www.hankyung.com/feed/finance',     topic:'금융'},
-  {name:'한국경제', url:'https://www.hankyung.com/feed/realestate',  topic:'부동산'},
-  {name:'매일경제', url:'https://www.mk.co.kr/rss/30100041/',        topic:'경제'},
-  {name:'매일경제', url:'https://www.mk.co.kr/rss/50200011/',        topic:'주식'},
+  // 연합뉴스 (세분화)
+  {name:'연합-최신', url:'https://www.yna.co.kr/rss/news.xml',          topic:'최신'},
+  {name:'연합-정치', url:'https://www.yna.co.kr/rss/politics.xml',      topic:'정치'},
+  {name:'연합-경제', url:'https://www.yna.co.kr/rss/economy.xml',       topic:'경제'},
+  {name:'연합-마켓', url:'https://www.yna.co.kr/rss/market.xml',        topic:'마켓'},
+  {name:'연합-산업', url:'https://www.yna.co.kr/rss/industry.xml',      topic:'산업'},
+  {name:'연합-사회', url:'https://www.yna.co.kr/rss/society.xml',       topic:'사회'},
+  {name:'연합-세계', url:'https://www.yna.co.kr/rss/international.xml', topic:'세계'},
+  {name:'연합-문화', url:'https://www.yna.co.kr/rss/culture.xml',       topic:'문화'},
+  {name:'연합-건강', url:'https://www.yna.co.kr/rss/health.xml',        topic:'건강'},
+  // 한국경제
+  {name:'한국경제', url:'https://www.hankyung.com/feed/economy',        topic:'경제'},
+  {name:'한국경제', url:'https://www.hankyung.com/feed/finance',        topic:'금융'},
+  {name:'한국경제', url:'https://www.hankyung.com/feed/realestate',     topic:'부동산'},
+  // 매일경제
+  {name:'매일경제', url:'https://www.mk.co.kr/rss/30100041/',           topic:'경제'},
+  {name:'매일경제', url:'https://www.mk.co.kr/rss/50200011/',           topic:'주식'},
+  // 매일노동뉴스
   {name:'매일노동뉴스', url:'https://www.labortoday.co.kr/rss/allArticle.xml', topic:'노동'},
-
 ];
 
 /* 키워드 → 관련 동의어/확장어 매핑 */
@@ -948,7 +964,7 @@ const KEYWORD_MAP = {
 
 
 const LS_KEY           = 'newsstand_gh';
-const AUTO_INTERVAL_MS = 30 * 60 * 1000; // 30분 자동 새로고침
+const AUTO_INTERVAL_MS = 15 * 60 * 1000; // 15분 자동 새로고침
 const FEED_CACHE_TTL   = 25 * 60 * 1000; // 25분 로컬 캐시
 
 let allNews          = [];
@@ -1017,15 +1033,23 @@ const WORKER_URL = localStorage.getItem('ns_worker_url') || '';
 
 function parseXmlItems(xml) {
   const doc   = new DOMParser().parseFromString(xml, 'text/xml');
-  const items = [...doc.querySelectorAll('item')];
+  // RSS 2.0: <item>, Atom: <entry>
+  let items = [...doc.querySelectorAll('item')];
+  if (!items.length) items = [...doc.querySelectorAll('entry')];
   return items.slice(0, 15).map(it => {
     const g  = tag => it.querySelector(tag)?.textContent?.trim() || '';
     const cd = it.querySelector('encoded') || it.querySelector('*|encoded');
+    // Atom은 <link href="..."> 구조
+    const linkEl = it.querySelector('link');
+    const link   = linkEl?.getAttribute('href') || g('link') || g('guid') || '';
+    // Atom은 <updated> or <published>
+    const pubDate = g('pubDate') || g('updated') || g('published') || '';
     return {
       title:   g('title'),
-      link:    g('link') || g('guid'),
-      snippet: (cd?.textContent || g('description')).replace(/<[^>]*>/g,'').trim().slice(0, 120),
-      pubDate: g('pubDate'),
+      link,
+      snippet: (cd?.textContent || g('description') || g('summary') || g('content'))
+               .replace(/<[^>]*>/g,'').trim().slice(0, 120),
+      pubDate,
     };
   });
 }
@@ -1203,10 +1227,8 @@ function renderNews() {
   if (currentSource !== 'all')  filtered = filtered.filter(n => n.source === currentSource);
   if (currentKeyword !== 'all') filtered = filtered.filter(n => matchesKeyword(n, currentKeyword));
 
-  // 전체 탭: 피드 수 × 2 (최소 12, 최대 30) / 소스 필터 시: 12개 고정
-  const displayCount = currentSource === 'all'
-    ? Math.min(Math.max(RSS_FEEDS.length * 2, 12), 30)
-    : 12;
+  // 전체 탭: 최대 28개 / 소스 필터 탭: 12개 고정
+  const displayCount = currentSource === 'all' ? 28 : 12;
   const topN = filtered.slice(0, displayCount);
   document.getElementById('news-count').textContent = topN.length;
 
