@@ -421,6 +421,44 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 </head>
 <body>
 
+<!-- ─── 비밀번호 잠금 화면 ──────────────────────────────────── -->
+<div id="lock-screen" style="
+  display:none;position:fixed;inset:0;z-index:9999;
+  background:var(--ink);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+">
+  <div style="text-align:center;margin-bottom:8px;">
+    <div style="font-family:var(--font-mono);font-size:28px;font-weight:700;color:var(--bright);letter-spacing:-.02em;">◉ NEWSTAND</div>
+    <div style="font-size:12px;color:var(--dim);margin-top:4px;letter-spacing:.08em;">우회의 가판대</div>
+  </div>
+  <div style="
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:28px 32px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;
+  ">
+    <p style="font-size:13px;color:var(--dim);text-align:center;">비밀번호를 입력하세요</p>
+    <input type="password" id="lock-input"
+      placeholder="비밀번호"
+      onkeydown="if(event.key==='Enter')unlock()"
+      style="
+        background:var(--ink);border:1px solid var(--border);border-radius:6px;
+        color:var(--bright);font-size:15px;padding:10px 14px;outline:none;
+        width:100%;text-align:center;letter-spacing:.2em;
+        transition:border-color .15s;
+      "
+    >
+    <button onclick="unlock()" style="
+      background:var(--accent);color:#fff;border:none;border-radius:6px;
+      font-size:13px;font-weight:600;padding:10px;cursor:pointer;
+      transition:opacity .15s;
+    " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+      입력
+    </button>
+    <p id="lock-error" style="font-size:11px;color:var(--red);text-align:center;display:none;">
+      비밀번호가 틀렸습니다.
+    </p>
+  </div>
+</div>
+
 <!-- ─── TICKER ─────────────────────────────────────────────── -->
 <div class="ticker-wrap">
   <div class="ticker-inner" id="ticker">
@@ -635,6 +673,30 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
         <input type="text" id="worker-url-input" placeholder="https://rss-proxy.이름.workers.dev">
       </div>
       <span id="worker-status" style="font-size:11px;color:var(--dim);display:block;margin-top:6px;"></span>
+    </div>
+
+    <!-- 비밀번호 변경 섹션 -->
+    <div style="border-top:1px solid var(--border);padding-top:14px;">
+      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px;">🔒 비밀번호 변경</p>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>현재 비밀번호</label>
+        <input type="password" id="cfg-pw-current" placeholder="현재 비밀번호">
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>새 비밀번호</label>
+        <input type="password" id="cfg-pw-new" placeholder="새 비밀번호">
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>새 비밀번호 확인</label>
+        <input type="password" id="cfg-pw-confirm" placeholder="새 비밀번호 재입력">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="changePassword()" style="
+          padding:6px 14px;border-radius:5px;background:var(--muted);color:var(--bright);
+          font-size:12px;font-weight:600;border:none;cursor:pointer;
+        ">변경</button>
+        <span id="pw-status" style="font-size:11px;color:var(--dim);"></span>
+      </div>
     </div>
 
     <div class="modal-footer">
@@ -1430,16 +1492,6 @@ function toggleTheme() {
   document.getElementById('theme-label').textContent = next === 'light' ? '다크' : '라이트';
   localStorage.setItem('newsstand_theme', next);
 }
-// 저장된 테마 복원
-(function restoreTheme() {
-  const saved = localStorage.getItem('newsstand_theme');
-  if (saved === 'light') {
-    document.documentElement.setAttribute('data-theme','light');
-    document.getElementById('theme-icon').textContent  = '🌙';
-    document.getElementById('theme-label').textContent = '다크';
-  }
-})();
-
 /* ── 설정 모달 ────────────────────────────────────────────── */
 function openWorkerModal() {
   // Supabase 필드 복원
@@ -1569,14 +1621,102 @@ function clearSettings() {
   updateWorkerBtn(false);
 }
 
-/* ── INIT ────────────────────────────────────────────────── */
-(function restoreSettings() {
-  const saved = localStorage.getItem('ns_worker_url');
-  updateWorkerBtn(!!saved);
-})();
-// restore config fields — 설정 모달로 통합됨, 탭 전환 시 autoLoadFromStorage 호출
+/* ── 비밀번호 ─────────────────────────────────────────────── */
+const DEFAULT_PW  = '1234';
+const PW_LS_KEY   = 'ns_pw_hash';
+const SESSION_KEY = 'ns_session';  // sessionStorage — 탭 닫으면 초기화
 
-loadAllNews(); // 최초 로드 + 자동 갱신 스케줄 시작
+async function sha256(str) {
+  const buf = await crypto.subtle.digest(
+    'SHA-256', new TextEncoder().encode(str)
+  );
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function getPwHash() {
+  const stored = localStorage.getItem(PW_LS_KEY);
+  if (stored) return stored;
+  // 초기 비밀번호 1234를 해시로 저장
+  const h = await sha256(DEFAULT_PW);
+  localStorage.setItem(PW_LS_KEY, h);
+  return h;
+}
+
+async function unlock() {
+  const input = document.getElementById('lock-input').value;
+  const errEl = document.getElementById('lock-error');
+  if (!input) return;
+  const inputHash = await sha256(input);
+  const storedHash = await getPwHash();
+  if (inputHash === storedHash) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('lock-input').value = '';
+    errEl.style.display = 'none';
+    // 메인 초기화
+    initApp();
+  } else {
+    errEl.style.display = 'block';
+    document.getElementById('lock-input').value = '';
+    document.getElementById('lock-input').focus();
+  }
+}
+
+async function changePassword() {
+  const cur     = document.getElementById('cfg-pw-current').value;
+  const nw      = document.getElementById('cfg-pw-new').value;
+  const confirm = document.getElementById('cfg-pw-confirm').value;
+  const status  = document.getElementById('pw-status');
+
+  if (!cur || !nw || !confirm) {
+    status.textContent = '❌ 모든 항목을 입력하세요'; status.style.color='var(--red)'; return;
+  }
+  if (nw !== confirm) {
+    status.textContent = '❌ 새 비밀번호가 일치하지 않아요'; status.style.color='var(--red)'; return;
+  }
+  if (nw.length < 4) {
+    status.textContent = '❌ 4자 이상 입력하세요'; status.style.color='var(--red)'; return;
+  }
+  const curHash = await sha256(cur);
+  const stored  = await getPwHash();
+  if (curHash !== stored) {
+    status.textContent = '❌ 현재 비밀번호가 틀렸습니다'; status.style.color='var(--red)'; return;
+  }
+  const newHash = await sha256(nw);
+  localStorage.setItem(PW_LS_KEY, newHash);
+  status.textContent = '✅ 비밀번호가 변경됐습니다';
+  status.style.color = 'var(--green)';
+  ['cfg-pw-current','cfg-pw-new','cfg-pw-confirm'].forEach(id =>
+    document.getElementById(id).value = ''
+  );
+}
+
+/* ── INIT ────────────────────────────────────────────────── */
+function initApp() {
+  // 설정 복원
+  updateWorkerBtn(!!(localStorage.getItem('ns_worker_url')));
+  // 테마 복원
+  const theme = localStorage.getItem('newsstand_theme');
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme','light');
+    document.getElementById('theme-icon').textContent  = '🌙';
+    document.getElementById('theme-label').textContent = '다크';
+  }
+  loadAllNews();
+}
+
+// 비밀번호 게이트
+(async function gate() {
+  if (sessionStorage.getItem(SESSION_KEY) === '1') {
+    // 이미 인증된 세션
+    document.getElementById('lock-screen').style.display = 'none';
+    initApp();
+  } else {
+    document.getElementById('lock-screen').style.display = 'flex';
+    await getPwHash(); // 초기 해시 세팅
+    setTimeout(() => document.getElementById('lock-input').focus(), 100);
+  }
+})();
 </script>
 </body>
 </html>
