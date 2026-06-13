@@ -493,7 +493,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <!-- 발행사 필터 -->
     <div class="filter-row" id="source-filters">
       <button class="filter-btn active" data-source="all">전체</button>
-      <button class="filter-btn" id="sf-naver" data-source="네이버랭킹">네이버랭킹</button>
+      <button class="filter-btn" id="sf-naver" data-source="다음뉴스">다음뉴스</button>
       <button class="filter-btn" id="sf-yna" data-source="연합뉴스">연합뉴스</button>
       <button class="filter-btn" data-source="한국경제">한국경제</button>
       <button class="filter-btn" data-source="매일경제">매일경제</button>
@@ -674,15 +674,15 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 ════════════════════════════════════════════════════════ -->
 <script>
 /* ── RSS FEEDS ─────────────────────────────────────────── */
-// 🔥 네이버 많이 본 뉴스: 실제 조회수 기반 랭킹 피드
+// 🔥 많이 본 뉴스: 다음 카테고리별 많이 본 기사 RSS (현재 운영 중)
 const RSS_FEEDS_RANKING = [
-  {name:'네이버랭킹', url:'https://news.naver.com/main/rss/rankingNews.naver?officeId=001', topic:'랭킹·연합'},
-  {name:'네이버랭킹', url:'https://news.naver.com/main/rss/rankingNews.naver?officeId=015', topic:'랭킹·한경'},
-  {name:'네이버랭킹', url:'https://news.naver.com/main/rss/rankingNews.naver?officeId=009', topic:'랭킹·중앙'},
-  {name:'네이버랭킹', url:'https://news.naver.com/main/rss/rankingNews.naver?officeId=023', topic:'랭킹·조선'},
+  {name:'다음뉴스', url:'https://rss.daumcdn.com/rss/popular/society',    topic:'많이본·사회'},
+  {name:'다음뉴스', url:'https://rss.daumcdn.com/rss/popular/economic',   topic:'많이본·경제'},
+  {name:'다음뉴스', url:'https://rss.daumcdn.com/rss/popular/political',  topic:'많이본·정치'},
+  {name:'다음뉴스', url:'https://rss.daumcdn.com/rss/popular/culture',    topic:'많이본·문화'},
 ];
 
-// 📡 일반 최신 피드
+// 📡 최신순 피드
 const RSS_FEEDS_LATEST = [
   {name:'연합뉴스', url:'https://www.yna.co.kr/rss/economy.xml',           topic:'경제'},
   {name:'연합뉴스', url:'https://www.yna.co.kr/rss/politics.xml',          topic:'정치'},
@@ -692,8 +692,8 @@ const RSS_FEEDS_LATEST = [
   {name:'한국경제', url:'https://www.hankyung.com/feed/realestate',         topic:'부동산'},
   {name:'매일경제', url:'https://www.mk.co.kr/rss/30100041/',               topic:'경제'},
   {name:'매일경제', url:'https://www.mk.co.kr/rss/50200011/',               topic:'주식'},
-  {name:'조선비즈', url:'https://biz.chosun.com/arc/outboundfeeds/rss/category/economy/',    topic:'경제'},
-  {name:'조선비즈', url:'https://biz.chosun.com/arc/outboundfeeds/rss/category/it-science/', topic:'기술'},
+  {name:'조선비즈', url:'https://biz.chosun.com/site/data/rss/rss.xml',    topic:'경제'},
+  {name:'조선비즈', url:'https://biz.chosun.com/site/data/rss/market.xml', topic:'증권'},
 ];
 
 // 현재 모드: 'ranking' | 'latest'
