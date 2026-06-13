@@ -529,6 +529,10 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       <button class="filter-btn" data-source="연합뉴스">연합뉴스</button>
       <button class="filter-btn" data-source="한국경제">한국경제</button>
       <button class="filter-btn" data-source="매일경제">매일경제</button>
+      <button class="filter-btn" data-source="매일노동뉴스">매일노동뉴스</button>
+      <button class="filter-btn" data-source="전자신문">전자신문</button>
+      <button class="filter-btn" data-source="ZDNet">ZDNet</button>
+      <button class="filter-btn" data-source="이데일리">이데일리</button>
     </div>
     <!-- 키워드 필터 -->
     <div class="filter-divider"></div>
@@ -757,6 +761,10 @@ const RSS_FEEDS = [
   {name:'한국경제', url:'https://www.hankyung.com/feed/realestate',  topic:'부동산'},
   {name:'매일경제', url:'https://www.mk.co.kr/rss/30100041/',        topic:'경제'},
   {name:'매일경제', url:'https://www.mk.co.kr/rss/50200011/',        topic:'주식'},
+  {name:'매일노동뉴스', url:'https://www.labortoday.co.kr/rss/allArticle.xml', topic:'노동'},
+  {name:'전자신문', url:'https://www.etnews.com/rss/section001.xml', topic:'기술'},
+  {name:'ZDNet',   url:'https://www.zdnet.co.kr/rss/news/all.xml',  topic:'IT'},
+  {name:'이데일리', url:'https://www.edaily.co.kr/rss/economy.xml',  topic:'증시'},
 ];
 
 /* 키워드 → 관련 동의어/확장어 매핑 */
