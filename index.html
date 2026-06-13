@@ -1827,8 +1827,92 @@ function clearSettings() {
   updateWorkerBtn(false);
 }
 
-/* ── 금융 데이터 전용 fetch (AbortSignal 없이 타임아웃 처리) */
-/* ── 로고 클릭 새로고침 ──────────────────────────────────── */
+/* ── 금융 데이터 전용 fetch ──────────────────────────────── */
+function fetchFinanceWithTimeout(url, options = {}, ms = 8000) {
+  return Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), ms)
+    ),
+  ]);
+}
+
+const FINANCE_ITEMS = [
+  {id:'kospi',  label:'KOSPI',   symbol:'^KS11', type:'stock'},
+  {id:'kosdaq', label:'KOSDAQ',  symbol:'^KQ11', type:'stock'},
+  {id:'nasdaq', label:'NASDAQ',  symbol:'^IXIC', type:'stock'},
+  {id:'sp500',  label:'S&P500',  symbol:'^GSPC', type:'stock'},
+  {id:'dow',    label:'DOW',     symbol:'^DJI',  type:'stock'},
+  {id:'usdkrw', label:'USD/KRW', symbol:null,    type:'fx'},
+  {id:'gold',   label:'금',       symbol:'GC=F',  type:'stock'},
+  {id:'btc',    label:'BTC',     symbol:null,    type:'crypto'},
+];
+
+/* Yahoo Finance v8 chart API — Worker 경유, 심볼 1개씩 */
+async function fetchYahooV8(symbol) {
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+  const url  = workerUrl ? `${workerUrl}?url=${encodeURIComponent(base)}` : base;
+  const res  = await fetchFinanceWithTimeout(url, {}, 7000);
+  if (!res.ok) throw new Error(`Yahoo ${res.status}`);
+  const data = await res.json();
+  const meta = data?.chart?.result?.[0]?.meta;
+  if (!meta) throw new Error('no meta');
+  const price    = meta.regularMarketPrice ?? meta.previousClose;
+  const prevClose= meta.chartPreviousClose ?? meta.previousClose ?? price;
+  const chg      = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+  return {val: price, chg, closed: meta.marketState !== 'REGULAR'};
+}
+
+async function fetchFinanceData() {
+  const results = {};
+
+  // 주가·금 — Yahoo v8 병렬 요청
+  const stockItems = FINANCE_ITEMS.filter(i => i.type === 'stock');
+  await Promise.allSettled(stockItems.map(async item => {
+    try {
+      results[item.id] = await fetchYahooV8(item.symbol);
+    } catch(e) {
+      console.warn(`[${item.label}] 실패:`, e.message);
+    }
+  }));
+
+  // 금 — 하루 1회 캐시 덮어쓰기
+  const today = new Date().toISOString().slice(0, 10);
+  if (results['gold']) {
+    localStorage.setItem('ns_gold_cache', JSON.stringify({date: today, data: results['gold']}));
+  } else {
+    const goldCache = JSON.parse(localStorage.getItem('ns_gold_cache') || 'null');
+    if (goldCache && goldCache.date === today) results['gold'] = goldCache.data;
+  }
+
+  // 환율 (USD/KRW) — exchangerate-api 무료
+  try {
+    const res  = await fetchFinanceWithTimeout('https://open.er-api.com/v6/latest/USD', {}, 6000);
+    if (res.ok) {
+      const data = await res.json();
+      const krw  = data?.rates?.KRW;
+      if (krw) {
+        // 전일 대비 변동 없음 (일 1회 업데이트라 chg=0)
+        results['usdkrw'] = {val: krw, chg: 0, closed: false};
+      }
+    }
+  } catch(e) { console.warn('[USD/KRW] 실패:', e.message); }
+
+  // 비트코인 — CoinGecko
+  try {
+    const res = await fetchFinanceWithTimeout(
+      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true',
+      {}, 6000
+    );
+    if (res.ok) {
+      const data = await res.json();
+      results['btc'] = {val: data?.bitcoin?.usd, chg: data?.bitcoin?.usd_24h_change, closed: false};
+    }
+  } catch(e) { console.warn('[BTC] 실패:', e.message); }
+
+  return results;
+}
 async function refreshFromLogo() {
   const spinner = document.getElementById('logo-spinner');
   spinner.classList.add('active');
@@ -1850,95 +1934,6 @@ function toggleFold() {
   if (div) div.classList.toggle('hidden', keywordFolded);
 }
 
-function fetchFinanceWithTimeout(url, options = {}, ms = 8000) {
-  return Promise.race([
-    fetch(url, options),
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), ms)
-    ),
-  ]);
-}
-const FINANCE_ITEMS = [
-  {id:'kospi',   label:'KOSPI',  symbol:'^KS11',  type:'stock'},
-  {id:'kosdaq',  label:'KOSDAQ', symbol:'^KQ11',  type:'stock'},
-  {id:'nasdaq',  label:'NASDAQ', symbol:'^IXIC',  type:'stock'},
-  {id:'sp500',   label:'S&P500', symbol:'^GSPC',  type:'stock'},
-  {id:'dow',     label:'DOW',    symbol:'^DJI',   type:'stock'},
-  {id:'usdkrw',  label:'USD/KRW',symbol:'KRW=X',  type:'stock'},
-  {id:'gold',    label:'금',      symbol:'GC=F',   type:'stock'},
-  {id:'btc',     label:'BTC',    symbol:null,      type:'crypto'},
-];
-
-async function fetchFinanceData() {
-  const results = {};
-  const workerUrl = localStorage.getItem('ns_worker_url') || '';
-
-  // Yahoo Finance URL을 Worker 경유로 호출
-  function yahooUrl(symbols) {
-    const base = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=regularMarketPrice,regularMarketChangePercent`;
-    return workerUrl ? `${workerUrl}?url=${encodeURIComponent(base)}` : base;
-  }
-
-  // 주가·환율 (금 제외)
-  const stockSymbols = FINANCE_ITEMS
-    .filter(i => i.type === 'stock' && i.id !== 'gold')
-    .map(i => i.symbol).join(',');
-  try {
-    const res = await fetchFinanceWithTimeout(yahooUrl(stockSymbols), {}, 8000);
-    if (res.ok) {
-      const text = await res.text();
-      const data = JSON.parse(text);
-      const quotes = data?.quoteResponse?.result || [];
-      quotes.forEach(q => {
-        const item = FINANCE_ITEMS.find(i => i.symbol === q.symbol);
-        if (item) results[item.id] = {
-          // 장 마감/주말엔 regularMarketPrice = 마지막 거래가 (정상)
-          val: q.regularMarketPrice ?? q.previousClose,
-          chg: q.regularMarketChangePercent ?? 0,
-          closed: q.marketState !== 'REGULAR', // 장 외 시간 여부
-        };
-      });
-    }
-  } catch(e) { console.warn('Finance fetch 실패:', e.message); }
-
-  // 금 시세 — 하루 1회 캐시
-  const today     = new Date().toISOString().slice(0, 10);
-  const goldCache = JSON.parse(localStorage.getItem('ns_gold_cache') || 'null');
-  if (goldCache && goldCache.date === today) {
-    results['gold'] = goldCache.data;
-  } else {
-    try {
-      const res = await fetchFinanceWithTimeout(yahooUrl('GC=F'), {}, 8000);
-      if (res.ok) {
-        const text = await res.text();
-        const data = JSON.parse(text);
-        const q = data?.quoteResponse?.result?.[0];
-        if (q) {
-          const goldData = {val: q.regularMarketPrice, chg: q.regularMarketChangePercent};
-          results['gold'] = goldData;
-          localStorage.setItem('ns_gold_cache', JSON.stringify({date: today, data: goldData}));
-        }
-      }
-    } catch(e) { console.warn('Gold fetch 실패:', e.message); }
-  }
-
-  // 비트코인 — CoinGecko 직접 (CORS 허용)
-  try {
-    const res = await fetchFinanceWithTimeout(
-      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true',
-      {}, 6000
-    );
-    if (res.ok) {
-      const data = await res.json();
-      results['btc'] = {
-        val: data?.bitcoin?.usd,
-        chg: data?.bitcoin?.usd_24h_change,
-      };
-    }
-  } catch(e) { console.warn('BTC fetch 실패:', e.message); }
-
-  return results;
-}
 
 function formatFinanceVal(id, val) {
   if (val == null) return '–';
