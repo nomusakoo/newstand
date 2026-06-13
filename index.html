@@ -436,10 +436,9 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     padding:28px 32px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;
   ">
     <p style="font-size:13px;color:var(--dim);text-align:center;">비밀번호를 입력하세요</p>
-    <input type="password" id="lock-input"
+    <input type="text" id="lock-input"
       placeholder="비밀번호"
-      autocomplete="new-password"
-      readonly
+      autocomplete="off"
       onkeydown="if(event.key==='Enter')unlock()"
       style="
         background:var(--ink);border:1px solid var(--border);border-radius:6px;
