@@ -203,19 +203,31 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto;}
   background:var(--panel);border:1px solid var(--border);border-radius:8px;
   padding:14px;display:flex;flex-direction:column;gap:7px;
   transition:border-color .15s,transform .15s;overflow:hidden;
+  border-left:3px solid var(--border); /* 기본 — JS에서 발행사별 색상으로 덮어씀 */
 }
 .news-card:hover{border-color:var(--muted);transform:translateY(-1px);}
-.news-card.rank-1{border-left:3px solid var(--accent2);}
-.news-card.rank-2{border-left:3px solid var(--accent);}
-.news-card.rank-3{border-left:3px solid var(--green);}
+/* 순위 1~3 숫자 색상만 유지 */
+.news-card.rank-1 .card-rank{color:var(--accent2);}
+.news-card.rank-2 .card-rank{color:var(--accent);}
+.news-card.rank-3 .card-rank{color:var(--green);}
+/* 발행사별 border-left 색상 */
+.src-연합-최신{border-left-color:#4f8aff !important;}
+.src-연합-정치{border-left-color:#7c6fde !important;}
+.src-연합-경제{border-left-color:#27c97a !important;}
+.src-연합-마켓{border-left-color:#f5a623 !important;}
+.src-연합-산업{border-left-color:#3ec6e0 !important;}
+.src-연합-사회{border-left-color:#ff7eb3 !important;}
+.src-연합-세계{border-left-color:#a78bfa !important;}
+.src-연합-문화{border-left-color:#fb923c !important;}
+.src-연합-건강{border-left-color:#34d399 !important;}
+.src-한국경제 {border-left-color:#f87171 !important;}
+.src-매일경제 {border-left-color:#fbbf24 !important;}
+.src-매일노동뉴스{border-left-color:#60a5fa !important;}
 .card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
 .card-rank{
   font-family:var(--font-mono);font-size:20px;font-weight:700;
   color:var(--muted);line-height:1;flex-shrink:0;
 }
-.news-card.rank-1 .card-rank{color:var(--accent2);}
-.news-card.rank-2 .card-rank{color:var(--accent);}
-.news-card.rank-3 .card-rank{color:var(--green);}
 .card-source-time{font-family:var(--font-mono);font-size:10px;color:var(--dim);text-align:right;flex-shrink:0;}
 .card-source{color:var(--accent);font-weight:600;display:block;}
 .card-title{
@@ -390,7 +402,29 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   animation:spin .7s linear infinite;margin:0 auto 14px;
 }
 
-/* ─── MOBILE OVERRIDES (≤640px) ──────────────────────────── */
+/* ─── 금융 대시보드 ──────────────────────────────────────── */
+#finance-bar::-webkit-scrollbar{display:none;}
+.fi-item{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:0 12px;border-right:1px solid var(--border);
+  font-family:var(--font-mono);font-size:11px;
+}
+.fi-item:last-child{border-right:none;}
+.fi-label{color:var(--dim);font-size:10px;}
+.fi-val{color:var(--bright);font-weight:600;}
+.fi-chg{font-size:10px;}
+.fi-chg.up{color:var(--green);}
+.fi-chg.dn{color:var(--red);}
+.fi-chg.flat{color:var(--dim);}
+.fi-skeleton{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+
+/* 금융바 높이만큼 sticky 오프셋 보정 */
+.tabs{top:calc(var(--ticker-h) + var(--header-h) + 36px);}
+@media(max-width:640px){
+  .tabs{top:calc(var(--ticker-h) + 50px + 36px);}
+  #finance-bar{padding:0 14px;}
+  .fi-item{padding:0 8px;}
+}
 @media(max-width:640px){
   body{padding-bottom:calc(60px + var(--safe-bottom));}
   .tabs{display:none;}
@@ -469,7 +503,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 
 <!-- ─── HEADER ─────────────────────────────────────────────── -->
 <header>
-  <div class="logo">
+  <div class="logo" onclick="loadAllNews(true)" title="클릭하여 새로고침" style="cursor:pointer;">
     <span class="logo-main">◉ NEWSTAND</span>
     <span class="logo-sub">우회의 가판대</span>
   </div>
@@ -482,8 +516,8 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       <span id="worker-btn-icon">⚙️</span>
       <span id="worker-btn-label">설정</span>
     </button>
-    <div class="auto-badge" id="auto-badge" title="30분 자동 새로고침">
-      ↺ <span id="countdown">30:00</span>
+    <div class="auto-badge" id="auto-badge" title="15분 자동 새로고침">
+      ↺ <span id="countdown">15:00</span>
     </div>
     <div class="header-meta">
       <span><span class="live-dot"></span>LIVE</span>
@@ -491,6 +525,19 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     </div>
   </div>
 </header>
+
+<!-- ─── 금융 대시보드 ──────────────────────────────────────── -->
+<div id="finance-bar" style="
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 20px;overflow-x:auto;scrollbar-width:none;
+  display:flex;align-items:center;gap:0;height:36px;
+">
+  <div id="finance-items" style="display:flex;align-items:center;gap:0;white-space:nowrap;">
+    <span style="font-family:var(--font-mono);font-size:10px;color:var(--dim);padding-right:12px;border-right:1px solid var(--border);margin-right:12px;">📊 시장</span>
+    <span class="fi-skeleton">로딩 중…</span>
+  </div>
+  <span id="finance-updated" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-left:auto;flex-shrink:0;padding-left:12px;"></span>
+</div>
 
 <!-- ─── DESKTOP TABS ───────────────────────────────────────── -->
 <nav class="tabs">
@@ -1247,6 +1294,7 @@ function renderNews() {
   document.getElementById('news-grid').innerHTML = topN.map((item, i) => {
     const rank     = i + 1;
     const rankCls  = rank <= 3 ? `rank-${rank}` : '';
+    const srcCls   = `src-${item.source}`;
     const timeStr  = item.pubDate
       ? new Date(item.pubDate).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
       : '';
@@ -1256,7 +1304,7 @@ function renderNews() {
     const safeTitle = item.title.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeLink  = encodeURIComponent(item.link);
     return `
-    <div class="news-card ${rankCls}">
+    <div class="news-card ${rankCls} ${srcCls}">
       <div class="card-header">
         <span class="card-rank">${String(rank).padStart(2,'0')}</span>
         <div class="card-source-time">
@@ -1714,6 +1762,131 @@ function clearSettings() {
   updateWorkerBtn(false);
 }
 
+/* ── 금융 데이터 전용 fetch (AbortSignal 없이 타임아웃 처리) */
+function fetchFinanceWithTimeout(url, options = {}, ms = 8000) {
+  return Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), ms)
+    ),
+  ]);
+}
+const FINANCE_ITEMS = [
+  {id:'kospi',   label:'KOSPI',  symbol:'^KS11',  type:'stock'},
+  {id:'kosdaq',  label:'KOSDAQ', symbol:'^KQ11',  type:'stock'},
+  {id:'nasdaq',  label:'NASDAQ', symbol:'^IXIC',  type:'stock'},
+  {id:'sp500',   label:'S&P500', symbol:'^GSPC',  type:'stock'},
+  {id:'dow',     label:'DOW',    symbol:'^DJI',   type:'stock'},
+  {id:'usdkrw',  label:'USD/KRW',symbol:'KRW=X',  type:'stock'},
+  {id:'gold',    label:'금',      symbol:'GC=F',   type:'stock'},
+  {id:'btc',     label:'BTC',    symbol:null,      type:'crypto'},
+];
+
+async function fetchFinanceData() {
+  const results = {};
+
+  // 주가·환율 — Yahoo Finance (금 제외)
+  const stockSymbols = FINANCE_ITEMS
+    .filter(i => i.type === 'stock' && i.id !== 'gold')
+    .map(i => i.symbol).join(',');
+  try {
+    const res = await fetchFinanceWithTimeout(
+      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${stockSymbols}&fields=regularMarketPrice,regularMarketChangePercent`,
+      {headers:{'Accept':'application/json'}}, 8000
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const quotes = data?.quoteResponse?.result || [];
+      quotes.forEach(q => {
+        const item = FINANCE_ITEMS.find(i => i.symbol === q.symbol);
+        if (item) results[item.id] = {
+          val: q.regularMarketPrice,
+          chg: q.regularMarketChangePercent,
+        };
+      });
+    }
+  } catch(e) { console.warn('Finance fetch 실패:', e.message); }
+
+  // 금 시세 — 하루 1회만 조회 (localStorage 캐시)
+  const today    = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const goldCache = JSON.parse(localStorage.getItem('ns_gold_cache') || 'null');
+  if (goldCache && goldCache.date === today) {
+    results['gold'] = goldCache.data;
+  } else {
+    try {
+      const res = await fetchFinanceWithTimeout(
+        'https://query1.finance.yahoo.com/v7/finance/quote?symbols=GC%3DF&fields=regularMarketPrice,regularMarketChangePercent',
+        {headers:{'Accept':'application/json'}}, 8000
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const q = data?.quoteResponse?.result?.[0];
+        if (q) {
+          const goldData = {val: q.regularMarketPrice, chg: q.regularMarketChangePercent};
+          results['gold'] = goldData;
+          localStorage.setItem('ns_gold_cache', JSON.stringify({date: today, data: goldData}));
+        }
+      }
+    } catch(e) { console.warn('Gold fetch 실패:', e.message); }
+  }
+
+  // 비트코인 — CoinGecko (무료 실시간)
+  try {
+    const res = await fetchFinanceWithTimeout(
+      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true',
+      {}, 6000
+    );
+    if (res.ok) {
+      const data = await res.json();
+      results['btc'] = {
+        val: data?.bitcoin?.usd,
+        chg: data?.bitcoin?.usd_24h_change,
+      };
+    }
+  } catch(e) { console.warn('BTC fetch 실패:', e.message); }
+
+  return results;
+}
+
+function formatFinanceVal(id, val) {
+  if (val == null) return '–';
+  if (id === 'usdkrw') return val.toLocaleString('ko-KR', {maximumFractionDigits:1});
+  if (id === 'btc')    return '$' + Math.round(val).toLocaleString();
+  if (id === 'gold')   return '$' + val.toFixed(1);
+  if (id === 'kospi' || id === 'kosdaq') return val.toLocaleString('ko-KR', {maximumFractionDigits:2});
+  return val.toLocaleString('en-US', {maximumFractionDigits:2});
+}
+
+async function renderFinanceBar() {
+  const data = await fetchFinanceData();
+  const now  = new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+
+  const html = FINANCE_ITEMS.map(item => {
+    const d    = data[item.id];
+    const val  = d?.val;
+    const chg  = d?.chg;
+    const chgStr = chg != null
+      ? (chg >= 0 ? '▲' : '▼') + Math.abs(chg).toFixed(2) + '%'
+      : '';
+    const chgCls = chg == null ? 'flat' : chg > 0 ? 'up' : chg < 0 ? 'dn' : 'flat';
+    return `<span class="fi-item">
+      <span class="fi-label">${item.label}</span>
+      <span class="fi-val">${formatFinanceVal(item.id, val)}</span>
+      ${chgStr ? `<span class="fi-chg ${chgCls}">${chgStr}</span>` : ''}
+    </span>`;
+  }).join('');
+
+  document.getElementById('finance-items').innerHTML =
+    `<span style="font-family:var(--font-mono);font-size:10px;color:var(--dim);padding-right:12px;border-right:1px solid var(--border);margin-right:0;">📊 시장</span>` + html;
+  document.getElementById('finance-updated').textContent = `15분지연 ${now}`;
+}
+
+// 금융 데이터 주기적 갱신 (5분마다)
+function scheduleFinance() {
+  renderFinanceBar();
+  setInterval(renderFinanceBar, 5 * 60 * 1000);
+}
+
 /* ── 비밀번호 ─────────────────────────────────────────────── */
 const DEFAULT_PW  = '1234';
 const PW_LS_KEY   = 'ns_pw_hash';
@@ -1786,15 +1959,14 @@ async function changePassword() {
 
 /* ── INIT ────────────────────────────────────────────────── */
 function initApp() {
-  // 설정 복원
   updateWorkerBtn(!!(localStorage.getItem('ns_worker_url')));
-  // 테마 복원
   const theme = localStorage.getItem('newsstand_theme');
   if (theme === 'light') {
     document.documentElement.setAttribute('data-theme','light');
     document.getElementById('theme-icon').textContent  = '🌙';
     document.getElementById('theme-label').textContent = '다크';
   }
+  scheduleFinance(); // 금융 대시보드
   loadAllNews();
 }
 
