@@ -1148,7 +1148,7 @@ function parseXmlItems(xml) {
   // RSS 2.0: <item>, Atom: <entry>
   let items = [...doc.querySelectorAll('item')];
   if (!items.length) items = [...doc.querySelectorAll('entry')];
-  return items.slice(0, 15).map(it => {
+  return items.slice(0, 36).map(it => {
     const g  = tag => it.querySelector(tag)?.textContent?.trim() || '';
     const cd = it.querySelector('encoded') || it.querySelector('*|encoded');
     // Atom은 <link href="..."> 구조
@@ -1340,7 +1340,7 @@ function renderNews() {
   if (currentKeyword !== 'all') filtered = filtered.filter(n => matchesKeyword(n, currentKeyword));
 
   // 전체 탭: 최대 28개 / 소스 필터 탭: 12개 고정
-  const displayCount = currentSource === 'all' ? 28 : 12;
+  const displayCount = currentSource === 'all' ? 36 : 15;
   const topN = filtered.slice(0, displayCount);
   document.getElementById('news-count').textContent = topN.length;
 
