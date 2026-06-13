@@ -672,9 +672,58 @@ const KEYWORD_MAP = {
   '글로벌':['글로벌','미국','중국','일본','유럽','세계','국제','무역','달러','원화','환율'],
 };
 
-const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
 const LS_KEY   = 'newsstand_gh';
 const AUTO_INTERVAL_MS = 30 * 60 * 1000; // 30분
+const FEED_CACHE_TTL   = 25 * 60 * 1000; // 25분 캐시
+
+/* ── 프록시 전략 ─────────────────────────────────────────
+   1순위: rss2json.com (JSON 변환, 가장 안정적)
+   2순위: AllOrigins  (raw XML → DOMParser 파싱)
+   3순위: corsproxy.io (raw XML → DOMParser 파싱)
+──────────────────────────────────────────────────────── */
+async function fetchViaRss2json(url) {
+  const endpoint = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=15`;
+  const res  = await fetch(endpoint, {cache:'no-store'});
+  const data = await res.json();
+  if (data.status !== 'ok') throw new Error(`rss2json: ${data.message||data.status}`);
+  return data.items.map(item => ({
+    title:   (item.title||'').trim(),
+    link:    item.link || '#',
+    snippet: (item.description||'').replace(/<[^>]*>/g,'').trim().slice(0,120),
+    pubDate: item.pubDate,
+  }));
+}
+
+function parseXmlItems(xml) {
+  const doc   = new DOMParser().parseFromString(xml, 'text/xml');
+  const items = [...doc.querySelectorAll('item')];
+  return items.slice(0,15).map(it => {
+    const g  = t => it.querySelector(t)?.textContent?.trim() || '';
+    const cd = it.querySelector('encoded') || it.querySelector('*|encoded');
+    return {
+      title:   g('title'),
+      link:    g('link') || g('guid'),
+      snippet: (cd?.textContent || g('description')).replace(/<[^>]*>/g,'').trim().slice(0,120),
+      pubDate: g('pubDate'),
+    };
+  });
+}
+
+async function fetchViaAllOrigins(url) {
+  const endpoint = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const res  = await fetch(endpoint, {cache:'no-store'});
+  const data = await res.json();
+  if (!data.contents) throw new Error('allorigins: empty');
+  return parseXmlItems(data.contents);
+}
+
+async function fetchViaCorsProxy(url) {
+  const endpoint = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+  const res  = await fetch(endpoint, {cache:'no-store'});
+  if (!res.ok) throw new Error(`corsproxy: ${res.status}`);
+  const xml = await res.text();
+  return parseXmlItems(xml);
+}
 
 let allNews         = [];
 let currentSource   = 'all';
@@ -729,22 +778,31 @@ document.querySelectorAll('.tab-btn,.bnav-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
-/* ── RSS FETCH ───────────────────────────────────────────── */
+/* ── RSS FETCH (캐시 + 3단 폴백) ────────────────────────── */
 async function fetchFeed(feed) {
+  const cacheKey = `ns_feed_${btoa(feed.url).slice(0,32)}`;
+  // 캐시 확인
   try {
-    const res  = await fetch(RSS2JSON + encodeURIComponent(feed.url) + '&count=15', {cache:'no-store'});
-    const data = await res.json();
-    if (data.status !== 'ok') return [];
-    return data.items.map((item, i) => ({
-      title:   item.title || '',
-      link:    item.link  || '#',
-      snippet: (item.description || '').replace(/<[^>]*>/g,'').trim().slice(0,120),
-      pubDate: item.pubDate,
-      source:  feed.name,
-      topic:   feed.topic,
-      score:   (15 - i) * 10 + (new Date(item.pubDate || 0).getTime() / 1e10),
-    }));
-  } catch { return []; }
+    const cached = JSON.parse(localStorage.getItem(cacheKey)||'null');
+    if (cached && (Date.now() - cached.ts) < FEED_CACHE_TTL) {
+      return cached.items.map(item => ({...item, source:feed.name, topic:feed.topic}));
+    }
+  } catch {}
+
+  const strategies = [fetchViaRss2json, fetchViaAllOrigins, fetchViaCorsProxy];
+  for (const fn of strategies) {
+    try {
+      const items = await fn(feed.url);
+      if (items.length === 0) continue;
+      // 캐시 저장
+      try { localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), items})); } catch {}
+      return items.map(item => ({...item, source:feed.name, topic:feed.topic}));
+    } catch(e) {
+      console.warn(`[${feed.name}] ${fn.name} 실패:`, e.message);
+    }
+  }
+  console.error(`[${feed.name}] 모든 프록시 실패 — ${feed.url}`);
+  return [];
 }
 
 async function loadAllNews() {
@@ -814,8 +872,10 @@ function renderNews() {
     document.getElementById('news-grid').innerHTML = `
       <div class="state-box" style="grid-column:1/-1">
         <div class="emoji">📭</div>
-        <p>해당 조건의 뉴스가 없습니다.<br>
-        <small>CORS 제한으로 일부 피드가 차단될 수 있어요.</small></p>
+        <p>불러온 뉴스가 없습니다.<br>
+        <small style="opacity:.7">3개 프록시 모두 실패했거나 해당 키워드 기사가 없어요.<br>
+        브라우저 콘솔(F12)에서 오류 내용을 확인할 수 있어요.<br>
+        새로고침 버튼을 다시 눌러보세요.</small></p>
       </div>`;
     return;
   }
