@@ -514,7 +514,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       <button class="filter-btn keyword-btn" data-keyword="글로벌">글로벌</button>
     </div>
     <div class="toolbar-right">
-      <button class="refresh-btn" id="news-refresh-btn" onclick="loadAllNews()">
+      <button class="refresh-btn" id="news-refresh-btn" onclick="loadAllNews(true)">
         <svg id="refresh-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="23 4 23 10 17 10"/>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -761,7 +761,7 @@ function startCountdown() {
 }
 function scheduleAutoRefresh() {
   clearTimeout(autoTimer);
-  autoTimer = setTimeout(async () => { await loadAllNews(); scheduleAutoRefresh(); }, AUTO_INTERVAL_MS);
+  autoTimer = setTimeout(async () => { await loadAllNews(true); scheduleAutoRefresh(); }, AUTO_INTERVAL_MS);
   startCountdown();
 }
 
@@ -859,39 +859,77 @@ async function fetchFeed(feed) {
   return [];
 }
 
-async function loadAllNews() {
-  const btn = document.getElementById('news-refresh-btn');
-  btn.classList.add('spinning');
-  document.getElementById('news-grid').innerHTML =
-    `<div class="state-box" style="grid-column:1/-1"><div class="spinner"></div><p>뉴스 수집 중…</p></div>`;
+/* 모드별 메모리 캐시 — 탭 전환 시 즉시 표시용 */
+const newsCache = { ranking: null, latest: null };
+const newsCacheTime = { ranking: 0, latest: 0 };
 
-  const results = await Promise.allSettled(RSS_FEEDS().map(fetchFeed));
-  let raw = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
-
-  // deduplicate by title prefix
+function dedup(raw) {
   const seen = new Set();
-  raw = raw.filter(item => {
-    const key = item.title.slice(0,24);
+  return raw.filter(item => {
+    const key = item.title.slice(0, 24);
     if (seen.has(key)) return false;
     seen.add(key); return true;
   });
+}
 
-  allNews = raw.sort((a,b) => {
-    // 최신순 정렬 (pubDate 기준)
+function sortNews(raw) {
+  return raw.sort((a, b) => {
     const ta = a.pubDate ? new Date(a.pubDate).getTime() : 0;
     const tb = b.pubDate ? new Date(b.pubDate).getTime() : 0;
     return tb - ta;
   });
+}
+
+async function loadAllNews(forceRefresh = false) {
+  const btn  = document.getElementById('news-refresh-btn');
+  const mode = feedMode;
+
+  /* ① 메모리 캐시 즉시 표시 (네트워크 요청 전) */
+  if (newsCache[mode] && !forceRefresh) {
+    allNews = newsCache[mode];
+    renderNews();
+    updateTicker();
+    const age = Math.round((Date.now() - newsCacheTime[mode]) / 1000);
+    const el = document.getElementById('news-updated');
+    if (el) el.textContent = `캐시 (${age < 60 ? age + '초' : Math.round(age/60) + '분'} 전)`;
+
+    /* 25분 이상 됐으면 백그라운드에서 조용히 갱신 */
+    if (Date.now() - newsCacheTime[mode] > FEED_CACHE_TTL) {
+      _fetchAndUpdate(mode, false); // 스피너 없이
+    }
+    scheduleAutoRefresh();
+    return;
+  }
+
+  /* ② 캐시 없거나 강제 새로고침 — 로딩 표시 후 fetch */
+  btn.classList.add('spinning');
+  if (!newsCache[mode]) {
+    document.getElementById('news-grid').innerHTML =
+      `<div class="state-box" style="grid-column:1/-1"><div class="spinner"></div><p>뉴스 수집 중…</p></div>`;
+  }
+  await _fetchAndUpdate(mode, true);
+  btn.classList.remove('spinning');
+  scheduleAutoRefresh();
+}
+
+async function _fetchAndUpdate(mode, showSpinner) {
+  const results = await Promise.allSettled(RSS_FEEDS().map(fetchFeed));
+  /* 탭 전환 중에 모드가 바뀌었으면 버림 */
+  if (feedMode !== mode) return;
+
+  let raw = dedup(results.flatMap(r => r.status === 'fulfilled' ? r.value : []));
+  raw = sortNews(raw);
+
+  newsCache[mode]    = raw;
+  newsCacheTime[mode] = Date.now();
+  allNews = raw;
 
   renderNews();
   updateTicker();
-  scheduleAutoRefresh();
 
   const now = new Date();
-  const updated = document.getElementById('news-updated');
-  if (updated) updated.textContent = `업데이트 ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
-
-  btn.classList.remove('spinning');
+  const el  = document.getElementById('news-updated');
+  if (el) el.textContent = `업데이트 ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
 }
 
 /* ── KEYWORD MATCH ───────────────────────────────────────── */
@@ -1223,21 +1261,35 @@ function updateWorkerBtn(connected) {
 
 /* ── 피드 모드 전환 ───────────────────────────────────────── */
 function setFeedMode(mode) {
+  if (feedMode === mode) return; // 같은 탭 재클릭 무시
   feedMode = mode;
   localStorage.setItem('ns_feed_mode', mode);
+
   document.querySelectorAll('#mode-filters .filter-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === mode);
   });
-  // 소스 필터 가시성: 랭킹 모드엔 발행사 필터 숨김
   const sf = document.getElementById('source-filters');
   sf.style.display = mode === 'ranking' ? 'none' : 'flex';
-  // 섹션 헤더 변경
   document.getElementById('news-section-title').textContent =
     mode === 'ranking' ? '🔥 많이 본 뉴스' : '📰 최신뉴스';
   currentSource = 'all';
   document.querySelectorAll('#source-filters .filter-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('#source-filters .filter-btn').classList.add('active');
-  loadAllNews();
+
+  /* 캐시 있으면 즉시 렌더, 없으면 fetch */
+  if (newsCache[mode]) {
+    allNews = newsCache[mode];
+    renderNews();
+    updateTicker();
+    const age = Math.round((Date.now() - newsCacheTime[mode]) / 1000);
+    const el = document.getElementById('news-updated');
+    if (el) el.textContent = `캐시 (${age < 60 ? age + '초' : Math.round(age/60) + '분'} 전)`;
+    if (Date.now() - newsCacheTime[mode] > FEED_CACHE_TTL) {
+      _fetchAndUpdate(mode, false);
+    }
+  } else {
+    loadAllNews();
+  }
 }
 
 /* ── INIT ────────────────────────────────────────────────── */
