@@ -478,6 +478,14 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 <!-- ══ TAB 1 · 실시간 뉴스 ══════════════════════════════════ -->
 <section class="tab-panel active" id="tab-news">
 
+  <!-- Worker URL 설정 바 -->
+  <div class="config-bar" id="worker-config-bar" style="margin-bottom:12px;">
+    <span style="font-size:11px;color:var(--dim);flex-shrink:0;">⚡ Worker URL</span>
+    <input type="text" id="worker-url-input" placeholder="https://rss-proxy.이름.workers.dev  (미입력 시 폴백 프록시 사용)" style="font-size:12px;">
+    <button class="config-save" onclick="saveWorkerUrl()">저장</button>
+    <span id="worker-status" style="font-size:11px;white-space:nowrap;"></span>
+  </div>
+
   <div class="toolbar">
     <!-- 발행사 필터 -->
     <div class="filter-row" id="source-filters">
@@ -672,66 +680,17 @@ const KEYWORD_MAP = {
   '글로벌':['글로벌','미국','중국','일본','유럽','세계','국제','무역','달러','원화','환율'],
 };
 
-const LS_KEY   = 'newsstand_gh';
-const AUTO_INTERVAL_MS = 30 * 60 * 1000; // 30분
-const FEED_CACHE_TTL   = 25 * 60 * 1000; // 25분 캐시
+const LS_KEY           = 'newsstand_gh';
+const AUTO_INTERVAL_MS = 30 * 60 * 1000; // 30분 자동 새로고침
+const FEED_CACHE_TTL   = 25 * 60 * 1000; // 25분 로컬 캐시
 
-/* ── 프록시 전략 ─────────────────────────────────────────
-   1순위: rss2json.com (JSON 변환, 가장 안정적)
-   2순위: AllOrigins  (raw XML → DOMParser 파싱)
-   3순위: corsproxy.io (raw XML → DOMParser 파싱)
-──────────────────────────────────────────────────────── */
-async function fetchViaRss2json(url) {
-  const endpoint = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=15`;
-  const res  = await fetch(endpoint, {cache:'no-store'});
-  const data = await res.json();
-  if (data.status !== 'ok') throw new Error(`rss2json: ${data.message||data.status}`);
-  return data.items.map(item => ({
-    title:   (item.title||'').trim(),
-    link:    item.link || '#',
-    snippet: (item.description||'').replace(/<[^>]*>/g,'').trim().slice(0,120),
-    pubDate: item.pubDate,
-  }));
-}
-
-function parseXmlItems(xml) {
-  const doc   = new DOMParser().parseFromString(xml, 'text/xml');
-  const items = [...doc.querySelectorAll('item')];
-  return items.slice(0,15).map(it => {
-    const g  = t => it.querySelector(t)?.textContent?.trim() || '';
-    const cd = it.querySelector('encoded') || it.querySelector('*|encoded');
-    return {
-      title:   g('title'),
-      link:    g('link') || g('guid'),
-      snippet: (cd?.textContent || g('description')).replace(/<[^>]*>/g,'').trim().slice(0,120),
-      pubDate: g('pubDate'),
-    };
-  });
-}
-
-async function fetchViaAllOrigins(url) {
-  const endpoint = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-  const res  = await fetch(endpoint, {cache:'no-store'});
-  const data = await res.json();
-  if (!data.contents) throw new Error('allorigins: empty');
-  return parseXmlItems(data.contents);
-}
-
-async function fetchViaCorsProxy(url) {
-  const endpoint = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-  const res  = await fetch(endpoint, {cache:'no-store'});
-  if (!res.ok) throw new Error(`corsproxy: ${res.status}`);
-  const xml = await res.text();
-  return parseXmlItems(xml);
-}
-
-let allNews         = [];
-let currentSource   = 'all';
-let currentKeyword  = 'all';
+let allNews          = [];
+let currentSource    = 'all';
+let currentKeyword   = 'all';
 let currentModalType = 'investment';
-let autoTimer       = null;
-let countdownTimer  = null;
-let nextRefreshAt   = null;
+let autoTimer        = null;
+let countdownTimer   = null;
+let nextRefreshAt    = null;
 
 /* ── CLOCK ──────────────────────────────────────────────── */
 function updateClock() {
@@ -742,7 +701,7 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-/* ── COUNTDOWN DISPLAY ──────────────────────────────────── */
+/* ── COUNTDOWN ───────────────────────────────────────────── */
 function startCountdown() {
   nextRefreshAt = Date.now() + AUTO_INTERVAL_MS;
   clearInterval(countdownTimer);
@@ -754,17 +713,13 @@ function startCountdown() {
     if (el) el.textContent = `${m}:${s}`;
   }, 1000);
 }
-
 function scheduleAutoRefresh() {
   clearTimeout(autoTimer);
-  autoTimer = setTimeout(async () => {
-    await loadAllNews();
-    scheduleAutoRefresh();
-  }, AUTO_INTERVAL_MS);
+  autoTimer = setTimeout(async () => { await loadAllNews(); scheduleAutoRefresh(); }, AUTO_INTERVAL_MS);
   startCountdown();
 }
 
-/* ── TABS (desktop + mobile) ─────────────────────────────── */
+/* ── TABS ────────────────────────────────────────────────── */
 function switchTab(tabName) {
   document.querySelectorAll('.tab-btn,.bnav-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tabName);
@@ -778,26 +733,79 @@ document.querySelectorAll('.tab-btn,.bnav-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
-/* ── RSS FETCH (캐시 + 3단 폴백) ────────────────────────── */
+/* ── Cloudflare Worker RSS 프록시 설정 ───────────────────────
+   예) https://rss-proxy.홍길동.workers.dev
+   미설정 시 폴백(AllOrigins → corsproxy)으로 동작합니다.
+──────────────────────────────────────────────────────────── */
+const WORKER_URL = localStorage.getItem('ns_worker_url') || '';
+
+function parseXmlItems(xml) {
+  const doc   = new DOMParser().parseFromString(xml, 'text/xml');
+  const items = [...doc.querySelectorAll('item')];
+  return items.slice(0, 15).map(it => {
+    const g  = tag => it.querySelector(tag)?.textContent?.trim() || '';
+    const cd = it.querySelector('encoded') || it.querySelector('*|encoded');
+    return {
+      title:   g('title'),
+      link:    g('link') || g('guid'),
+      snippet: (cd?.textContent || g('description')).replace(/<[^>]*>/g,'').trim().slice(0, 120),
+      pubDate: g('pubDate'),
+    };
+  });
+}
+
+/* 1순위: 내 Cloudflare Worker (무제한) */
+async function fetchViaWorker(url) {
+  if (!WORKER_URL) throw new Error('Worker URL 미설정');
+  const endpoint = `${WORKER_URL}?url=${encodeURIComponent(url)}`;
+  const res = await fetch(endpoint, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Worker ${res.status}`);
+  const xml = await res.text();
+  const items = parseXmlItems(xml);
+  if (!items.length) throw new Error('Worker: 파싱 결과 없음');
+  return items;
+}
+
+/* 2순위: AllOrigins (무료, 제한 느슨) */
+async function fetchViaAllOrigins(url) {
+  const endpoint = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const res  = await fetch(endpoint, { cache: 'no-store' });
+  const data = await res.json();
+  if (!data.contents) throw new Error('allorigins: empty');
+  return parseXmlItems(data.contents);
+}
+
+/* 3순위: corsproxy.io */
+async function fetchViaCorsProxy(url) {
+  const endpoint = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+  const res = await fetch(endpoint, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`corsproxy: ${res.status}`);
+  return parseXmlItems(await res.text());
+}
+
+/* ── RSS FETCH (Worker 우선 → 자동 폴백) ──────────────────── */
 async function fetchFeed(feed) {
-  const cacheKey = `ns_feed_${btoa(feed.url).slice(0,32)}`;
-  // 캐시 확인
+  const cacheKey = `ns_feed_${btoa(encodeURIComponent(feed.url)).slice(0, 32)}`;
+
+  // localStorage 캐시 확인
   try {
-    const cached = JSON.parse(localStorage.getItem(cacheKey)||'null');
+    const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
     if (cached && (Date.now() - cached.ts) < FEED_CACHE_TTL) {
-      return cached.items.map(item => ({...item, source:feed.name, topic:feed.topic}));
+      return cached.items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
     }
   } catch {}
 
-  const strategies = [fetchViaRss2json, fetchViaAllOrigins, fetchViaCorsProxy];
+  const strategies = WORKER_URL
+    ? [fetchViaWorker, fetchViaAllOrigins, fetchViaCorsProxy]
+    : [fetchViaAllOrigins, fetchViaCorsProxy];
+
   for (const fn of strategies) {
     try {
       const items = await fn(feed.url);
-      if (items.length === 0) continue;
-      // 캐시 저장
-      try { localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), items})); } catch {}
-      return items.map(item => ({...item, source:feed.name, topic:feed.topic}));
-    } catch(e) {
+      if (!items.length) continue;
+      try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), items })); } catch {}
+      return items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
+    } catch (e) {
       console.warn(`[${feed.name}] ${fn.name} 실패:`, e.message);
     }
   }
@@ -1109,7 +1117,43 @@ function toggleTheme() {
   }
 })();
 
+/* ── WORKER URL 설정 ─────────────────────────────────────── */
+function saveWorkerUrl() {
+  const val = document.getElementById('worker-url-input').value.trim().replace(/\/$/, '');
+  const statusEl = document.getElementById('worker-status');
+  if (!val) {
+    localStorage.removeItem('ns_worker_url');
+    statusEl.textContent = '⚪ 폴백 모드';
+    statusEl.style.color = 'var(--dim)';
+    location.reload();
+    return;
+  }
+  // 간단한 형식 검증
+  if (!val.startsWith('https://')) {
+    statusEl.textContent = '❌ https:// 로 시작해야 해요';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  localStorage.setItem('ns_worker_url', val);
+  statusEl.textContent = '✅ 저장됨 — 새로고침 중…';
+  statusEl.style.color = 'var(--green)';
+  setTimeout(() => location.reload(), 800);
+}
+
 /* ── INIT ────────────────────────────────────────────────── */
+(function restoreWorkerUrl() {
+  const saved = localStorage.getItem('ns_worker_url');
+  const input  = document.getElementById('worker-url-input');
+  const status = document.getElementById('worker-status');
+  if (saved) {
+    input.value         = saved;
+    status.textContent  = '✅ Worker 연결됨';
+    status.style.color  = 'var(--green)';
+  } else {
+    status.textContent  = '⚪ 폴백 모드 (AllOrigins → corsproxy)';
+    status.style.color  = 'var(--dim)';
+  }
+})();
 // restore config fields
 (function restoreFields() {
   const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
