@@ -438,7 +438,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <p style="font-size:13px;color:var(--dim);text-align:center;">비밀번호를 입력하세요</p>
     <input type="password" id="lock-input"
       placeholder="비밀번호"
-      autocomplete="off"
+      autocomplete="new-password"
       onkeydown="if(event.key==='Enter')unlock()"
       style="
         background:var(--ink);border:1px solid var(--border);border-radius:6px;
@@ -1709,13 +1709,16 @@ function initApp() {
 // 비밀번호 게이트
 (async function gate() {
   if (sessionStorage.getItem(SESSION_KEY) === '1') {
-    // 이미 인증된 세션
     document.getElementById('lock-screen').style.display = 'none';
     initApp();
   } else {
     document.getElementById('lock-screen').style.display = 'flex';
-    await getPwHash(); // 초기 해시 세팅
-    setTimeout(() => document.getElementById('lock-input').focus(), 100);
+    await getPwHash();
+    // 브라우저 자동완성이 채우기 전에 강제로 비우기
+    const inp = document.getElementById('lock-input');
+    inp.value = '';
+    setTimeout(() => { inp.value = ''; inp.focus(); }, 50);
+    setTimeout(() => { inp.value = ''; }, 200);
   }
 })();
 </script>
