@@ -540,14 +540,6 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 <!-- ══ TAB 2 · 투자 인사이트 ════════════════════════════════ -->
 <section class="tab-panel" id="tab-invest">
 
-  <div class="config-bar">
-    <label>GitHub</label>
-    <input type="text" id="gh-owner" placeholder="username">
-    <span style="color:var(--muted);flex-shrink:0">/</span>
-    <input type="text" id="gh-repo" placeholder="my-insights">
-    <button class="config-save" onclick="saveConfig()">저장 &amp; 로드</button>
-  </div>
-
   <div class="stats-bar" id="invest-stats" style="display:none">
     <div class="stat-item"><div class="stat-label">전체 인사이트</div><div class="stat-val blue" id="stat-total">–</div></div>
     <div class="stat-item"><div class="stat-label">Watch 종목</div><div class="stat-val green" id="stat-watch">–</div></div>
@@ -572,14 +564,6 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 <!-- ══ TAB 3 · 블로그 인사이트 ══════════════════════════════ -->
 <section class="tab-panel" id="tab-blog">
 
-  <div class="config-bar">
-    <label>GitHub</label>
-    <input type="text" id="gh-owner-b" placeholder="username">
-    <span style="color:var(--muted);flex-shrink:0">/</span>
-    <input type="text" id="gh-repo-b" placeholder="my-insights">
-    <button class="config-save" onclick="saveConfigBlog()">저장 &amp; 로드</button>
-  </div>
-
   <div class="section-hd">
     <h2>✍️ 블로그 아이디어</h2>
     <span class="count" id="blog-count">0</span>
@@ -597,30 +581,55 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 
 <!-- ─── WORKER 설정 모달 ──────────────────────────────────── -->
 <div class="modal-overlay" id="worker-modal-overlay">
-  <div class="modal" style="max-width:460px;">
-    <h3>⚙️ RSS Worker 설정</h3>
-    <p style="font-size:12px;color:var(--dim);line-height:1.7;margin-top:-6px;">
-      Cloudflare Worker URL을 등록하면 RSS를 횟수 제한 없이 직접 가져올 수 있어요.<br>
-      미입력 시 AllOrigins → corsproxy 폴백으로 동작합니다.
-    </p>
-    <div class="form-group">
-      <label>Worker URL</label>
-      <input type="text" id="worker-url-input"
-        placeholder="https://rss-proxy.이름.workers.dev">
+  <div class="modal" style="max-width:480px;">
+    <h3>⚙️ 설정</h3>
+
+    <!-- GitHub 섹션 -->
+    <div style="border-bottom:1px solid var(--border);padding-bottom:16px;">
+      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px;">📦 GitHub 연동</p>
+      <p style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px;">
+        투자·블로그 인사이트를 저장할 GitHub repo를 입력하세요.<br>
+        하나의 repo를 두 탭에서 공유할 수 있어요 (라벨로 구분).
+      </p>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>GitHub username</label>
+        <input type="text" id="cfg-gh-owner" placeholder="예) johndoe">
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>Repository 이름</label>
+        <input type="text" id="cfg-gh-repo" placeholder="예) newstand">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+        <span id="gh-status" style="font-size:11px;flex:1;color:var(--dim);"></span>
+      </div>
     </div>
-    <div style="background:var(--ink);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:11px;color:var(--dim);line-height:1.8;">
-      <strong style="color:var(--text);display:block;margin-bottom:4px;">📋 배포 방법</strong>
-      1. cloudflare.com → Workers &amp; Pages → Create<br>
-      2. rss-proxy-worker.js 내용 붙여넣기 → Save &amp; Deploy<br>
-      3. 생성된 URL 위에 입력 → 저장
+
+    <!-- Worker URL 섹션 -->
+    <div style="padding-top:4px;">
+      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px;">⚡ Cloudflare Worker (RSS 프록시)</p>
+      <p style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px;">
+        Worker URL을 등록하면 RSS를 횟수 제한 없이 가져올 수 있어요.<br>
+        미입력 시 AllOrigins → corsproxy 폴백으로 동작합니다.
+      </p>
+      <div class="form-group">
+        <label>Worker URL</label>
+        <input type="text" id="worker-url-input" placeholder="https://rss-proxy.이름.workers.dev">
+      </div>
+      <div style="background:var(--ink);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-size:11px;color:var(--dim);line-height:1.8;margin-top:8px;">
+        <strong style="color:var(--text);display:block;margin-bottom:3px;">📋 Worker 배포 방법</strong>
+        1. cloudflare.com → Workers &amp; Pages → Create<br>
+        2. rss-proxy-worker.js 내용 붙여넣기 → Save &amp; Deploy<br>
+        3. 생성된 URL 위에 입력 → 저장
+      </div>
+      <div style="margin-top:8px;">
+        <span id="worker-status" style="font-size:11px;color:var(--dim);"></span>
+      </div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span id="worker-status" style="font-size:12px;flex:1;"></span>
-    </div>
+
     <div class="modal-footer">
-      <button class="btn-cancel" onclick="clearWorkerUrl()">초기화</button>
+      <button class="btn-cancel" onclick="clearSettings()">초기화</button>
       <button class="btn-cancel" onclick="closeWorkerModal()">닫기</button>
-      <button class="btn-submit" onclick="saveWorkerUrl()">저장</button>
+      <button class="btn-submit" onclick="saveAllSettings()">저장</button>
     </div>
   </div>
 </div>
@@ -1012,41 +1021,18 @@ document.getElementById('keyword-filters').addEventListener('click', e => {
   renderNews();
 });
 
-/* ── GITHUB CONFIG ───────────────────────────────────────── */
-function saveConfig() {
-  const owner = document.getElementById('gh-owner').value.trim();
-  const repo  = document.getElementById('gh-repo').value.trim();
-  if (!owner || !repo) return alert('username과 repo를 모두 입력하세요.');
+/* ── GITHUB CONFIG (통합) ────────────────────────────────── */
+function saveGitHubConfig(owner, repo) {
   const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
   cfg.invest = {owner, repo};
+  cfg.blog   = {owner, repo};
   localStorage.setItem(LS_KEY, JSON.stringify(cfg));
-  if (!document.getElementById('gh-owner-b').value) document.getElementById('gh-owner-b').value = owner;
-  if (!document.getElementById('gh-repo-b').value)  document.getElementById('gh-repo-b').value  = repo;
-  loadInsights('invest', owner, repo);
-}
-
-function saveConfigBlog() {
-  const owner = document.getElementById('gh-owner-b').value.trim();
-  const repo  = document.getElementById('gh-repo-b').value.trim();
-  if (!owner || !repo) return alert('username과 repo를 모두 입력하세요.');
-  const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-  cfg.blog = {owner, repo};
-  localStorage.setItem(LS_KEY, JSON.stringify(cfg));
-  loadInsights('blog', owner, repo);
 }
 
 function autoLoadFromStorage(type) {
   const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-  const key = type === 'invest' ? 'invest' : 'blog';
-  const c = cfg[key];
-  if (!c) return;
-  const ownerEl = type === 'invest' ? 'gh-owner'   : 'gh-owner-b';
-  const repoEl  = type === 'invest' ? 'gh-repo'    : 'gh-repo-b';
-  if (!document.getElementById(ownerEl).value) {
-    document.getElementById(ownerEl).value = c.owner;
-    document.getElementById(repoEl).value  = c.repo;
-    loadInsights(type, c.owner, c.repo);
-  }
+  const c   = cfg[type === 'invest' ? 'invest' : 'blog'];
+  if (c) loadInsights(type, c.owner, c.repo);
 }
 
 /* ── GITHUB ISSUES ───────────────────────────────────────── */
@@ -1178,13 +1164,23 @@ function toggleTheme() {
   }
 })();
 
-/* ── WORKER 모달 ──────────────────────────────────────────── */
+/* ── 설정 모달 ────────────────────────────────────────────── */
 function openWorkerModal() {
-  const saved = localStorage.getItem('ns_worker_url') || '';
-  document.getElementById('worker-url-input').value = saved;
-  const s = document.getElementById('worker-status');
-  s.textContent  = saved ? '✅ Worker 연결됨' : '⚪ 폴백 모드 사용 중';
-  s.style.color  = saved ? 'var(--green)' : 'var(--dim)';
+  // GitHub 필드 복원
+  const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+  const c   = cfg.invest || cfg.blog || {};
+  document.getElementById('cfg-gh-owner').value = c.owner || '';
+  document.getElementById('cfg-gh-repo').value  = c.repo  || '';
+  const ghS = document.getElementById('gh-status');
+  ghS.textContent = (c.owner && c.repo)
+    ? `✅ ${c.owner}/${c.repo} 연결됨` : '⚪ 미연결';
+  ghS.style.color = (c.owner && c.repo) ? 'var(--green)' : 'var(--dim)';
+  // Worker 필드 복원
+  const savedW = localStorage.getItem('ns_worker_url') || '';
+  document.getElementById('worker-url-input').value = savedW;
+  const wS = document.getElementById('worker-status');
+  wS.textContent = savedW ? '✅ Worker 연결됨' : '⚪ 폴백 모드 사용 중';
+  wS.style.color = savedW ? 'var(--green)' : 'var(--dim)';
   document.getElementById('worker-modal-overlay').classList.add('open');
 }
 function closeWorkerModal() {
@@ -1193,39 +1189,17 @@ function closeWorkerModal() {
 document.getElementById('worker-modal-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeWorkerModal();
 });
-function clearWorkerUrl() {
-  localStorage.removeItem('ns_worker_url');
-  document.getElementById('worker-url-input').value = '';
-  const s = document.getElementById('worker-status');
-  s.textContent = '🗑️ 초기화됨 — 폴백 모드로 전환';
-  s.style.color = 'var(--dim)';
-  updateWorkerBtn(false);
-}
-
-/* ── WORKER URL 저장 ──────────────────────────────────────── */
-function saveWorkerUrl() {
-  const val = document.getElementById('worker-url-input').value.trim().replace(/\/$/, '');
-  const s   = document.getElementById('worker-status');
-  if (!val) { clearWorkerUrl(); return; }
-  if (!val.startsWith('https://')) {
-    s.textContent = '❌ https:// 로 시작해야 해요';
-    s.style.color = 'var(--red)';
-    return;
-  }
-  localStorage.setItem('ns_worker_url', val);
-  s.textContent = '✅ 저장 완료!';
-  s.style.color = 'var(--green)';
-  updateWorkerBtn(true);
-  setTimeout(closeWorkerModal, 700);
-}
-
 function updateWorkerBtn(connected) {
   const btn   = document.getElementById('worker-btn');
   const icon  = document.getElementById('worker-btn-icon');
   const label = document.getElementById('worker-btn-label');
-  if (connected) {
-    icon.textContent  = '⚡';
-    label.textContent = 'Worker';
+  // GitHub 연결 여부도 반영
+  const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+  const ghOk = !!(cfg.invest?.owner);
+  const anyConnected = connected || ghOk;
+  if (anyConnected) {
+    icon.textContent  = ghOk ? '🔗' : '⚡';
+    label.textContent = '설정됨';
     btn.style.color   = 'var(--green)';
     btn.style.borderColor = 'rgba(39,201,122,.4)';
   } else {
@@ -1234,6 +1208,64 @@ function updateWorkerBtn(connected) {
     btn.style.color   = '';
     btn.style.borderColor = '';
   }
+}
+
+/* ── 전체 설정 저장 ───────────────────────────────────────── */
+function saveAllSettings() {
+  const owner     = document.getElementById('cfg-gh-owner').value.trim();
+  const repo      = document.getElementById('cfg-gh-repo').value.trim();
+  const workerVal = document.getElementById('worker-url-input').value.trim().replace(/\/$/, '');
+  const wS  = document.getElementById('worker-status');
+  const ghS = document.getElementById('gh-status');
+
+  if ((owner && !repo) || (!owner && repo)) {
+    ghS.textContent = '❌ username과 repo 둘 다 입력하거나 둘 다 비워주세요';
+    ghS.style.color = 'var(--red)';
+    return;
+  }
+  if (workerVal && !workerVal.startsWith('https://')) {
+    wS.textContent = '❌ https:// 로 시작해야 해요';
+    wS.style.color = 'var(--red)';
+    return;
+  }
+
+  if (owner && repo) {
+    saveGitHubConfig(owner, repo);
+    ghS.textContent = `✅ ${owner}/${repo} 저장됨`;
+    ghS.style.color = 'var(--green)';
+    if (document.getElementById('tab-invest').classList.contains('active'))
+      loadInsights('invest', owner, repo);
+    if (document.getElementById('tab-blog').classList.contains('active'))
+      loadInsights('blog', owner, repo);
+  }
+
+  if (workerVal) {
+    localStorage.setItem('ns_worker_url', workerVal);
+    wS.textContent = '✅ Worker 저장됨';
+    wS.style.color = 'var(--green)';
+  } else {
+    localStorage.removeItem('ns_worker_url');
+    wS.textContent = '⚪ Worker 미설정 (폴백 모드)';
+    wS.style.color = 'var(--dim)';
+  }
+
+  updateWorkerBtn(!!workerVal);
+  setTimeout(closeWorkerModal, 700);
+}
+
+function clearSettings() {
+  document.getElementById('cfg-gh-owner').value     = '';
+  document.getElementById('cfg-gh-repo').value      = '';
+  document.getElementById('worker-url-input').value = '';
+  const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+  delete cfg.invest; delete cfg.blog;
+  localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+  localStorage.removeItem('ns_worker_url');
+  document.getElementById('gh-status').textContent     = '🗑️ 초기화됨';
+  document.getElementById('gh-status').style.color     = 'var(--dim)';
+  document.getElementById('worker-status').textContent = '🗑️ 초기화됨';
+  document.getElementById('worker-status').style.color = 'var(--dim)';
+  updateWorkerBtn(false);
 }
 
 /* ── 피드 모드 전환 ───────────────────────────────────────── */
@@ -1284,18 +1316,7 @@ function setFeedMode(mode) {
   document.getElementById('news-section-title').textContent =
     savedMode === 'ranking' ? '🔥 많이 본 뉴스' : '📰 최신뉴스';
 })();
-// restore config fields
-(function restoreFields() {
-  const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-  if (cfg.invest) {
-    document.getElementById('gh-owner').value = cfg.invest.owner;
-    document.getElementById('gh-repo').value  = cfg.invest.repo;
-  }
-  if (cfg.blog) {
-    document.getElementById('gh-owner-b').value = cfg.blog.owner;
-    document.getElementById('gh-repo-b').value  = cfg.blog.repo;
-  }
-})();
+// restore config fields — 설정 모달로 통합됨, 탭 전환 시 autoLoadFromStorage 호출
 
 loadAllNews(); // 최초 로드 + 자동 갱신 스케줄 시작
 </script>
