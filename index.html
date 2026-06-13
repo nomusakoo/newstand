@@ -577,13 +577,45 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   <div class="modal" style="max-width:480px;">
     <h3>⚙️ 설정</h3>
 
-    <!-- GitHub 섹션 -->
+    <!-- Supabase 섹션 -->
     <div style="border-bottom:1px solid var(--border);padding-bottom:16px;">
-      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px;">📦 GitHub 연동</p>
+      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">🗄️ Supabase 연동 <span style="font-size:10px;color:var(--accent);font-weight:400;">(인페이지 저장 — 추천)</span></p>
       <p style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px;">
-        투자·블로그 인사이트를 저장할 GitHub repo를 입력하세요.<br>
-        하나의 repo를 두 탭에서 공유할 수 있어요 (라벨로 구분).
+        Supabase를 연결하면 페이지에서 바로 저장·조회·삭제할 수 있어요.<br>
+        기존 프로젝트의 URL과 anon key를 입력하세요.
       </p>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>Project URL</label>
+        <input type="text" id="cfg-sb-url" placeholder="https://xxxx.supabase.co">
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>anon (public) key</label>
+        <input type="text" id="cfg-sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+      </div>
+      <div style="background:var(--ink);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-size:11px;color:var(--dim);line-height:1.8;margin-bottom:8px;">
+        <strong style="color:var(--text);display:block;margin-bottom:3px;">📋 테이블 생성 SQL (최초 1회)</strong>
+        Supabase → SQL Editor에서 아래 실행:<br>
+        <code style="font-size:10px;color:var(--accent2);display:block;margin-top:4px;line-height:1.9;">
+          create table insights (<br>
+          &nbsp;&nbsp;id bigint generated always as identity primary key,<br>
+          &nbsp;&nbsp;type text not null,<br>
+          &nbsp;&nbsp;label text not null,<br>
+          &nbsp;&nbsp;title text not null,<br>
+          &nbsp;&nbsp;body text,<br>
+          &nbsp;&nbsp;tags text,<br>
+          &nbsp;&nbsp;source_url text,<br>
+          &nbsp;&nbsp;created_at timestamptz default now()<br>
+          );<br>
+          alter table insights enable row level security;<br>
+          create policy "anon all" on insights for all using (true) with check (true);
+        </code>
+      </div>
+      <span id="sb-status" style="font-size:11px;color:var(--dim);"></span>
+    </div>
+
+    <!-- GitHub 섹션 -->
+    <div style="border-bottom:1px solid var(--border);padding-bottom:16px;padding-top:12px;">
+      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">📦 GitHub 연동 <span style="font-size:10px;color:var(--dim);font-weight:400;">(Supabase 미연결 시 폴백)</span></p>
       <div class="form-group" style="margin-bottom:8px;">
         <label>GitHub username</label>
         <input type="text" id="cfg-gh-owner" placeholder="예) johndoe">
@@ -592,31 +624,17 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
         <label>Repository 이름</label>
         <input type="text" id="cfg-gh-repo" placeholder="예) newstand">
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-        <span id="gh-status" style="font-size:11px;flex:1;color:var(--dim);"></span>
-      </div>
+      <span id="gh-status" style="font-size:11px;color:var(--dim);"></span>
     </div>
 
     <!-- Worker URL 섹션 -->
-    <div style="padding-top:4px;">
-      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px;">⚡ Cloudflare Worker (RSS 프록시)</p>
-      <p style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px;">
-        Worker URL을 등록하면 RSS를 횟수 제한 없이 가져올 수 있어요.<br>
-        미입력 시 AllOrigins → corsproxy 폴백으로 동작합니다.
-      </p>
+    <div style="padding-top:12px;">
+      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">⚡ Cloudflare Worker (RSS 프록시)</p>
       <div class="form-group">
         <label>Worker URL</label>
         <input type="text" id="worker-url-input" placeholder="https://rss-proxy.이름.workers.dev">
       </div>
-      <div style="background:var(--ink);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-size:11px;color:var(--dim);line-height:1.8;margin-top:8px;">
-        <strong style="color:var(--text);display:block;margin-bottom:3px;">📋 Worker 배포 방법</strong>
-        1. cloudflare.com → Workers &amp; Pages → Create<br>
-        2. rss-proxy-worker.js 내용 붙여넣기 → Save &amp; Deploy<br>
-        3. 생성된 URL 위에 입력 → 저장
-      </div>
-      <div style="margin-top:8px;">
-        <span id="worker-status" style="font-size:11px;color:var(--dim);"></span>
-      </div>
+      <span id="worker-status" style="font-size:11px;color:var(--dim);display:block;margin-top:6px;"></span>
     </div>
 
     <div class="modal-footer">
@@ -656,7 +674,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeModal()">취소</button>
-      <button class="btn-submit" onclick="submitInsight()">GitHub에서 저장</button>
+      <button class="btn-submit" onclick="submitInsight()">저장</button>
     </div>
   </div>
 </div>
@@ -1162,7 +1180,24 @@ document.getElementById('keyword-filters').addEventListener('click', e => {
   renderNews();
 });
 
-/* ── GITHUB CONFIG (통합) ────────────────────────────────── */
+/* ── SUPABASE 설정 ───────────────────────────────────────── */
+function getSbCfg() {
+  const url = localStorage.getItem('ns_sb_url') || '';
+  const key = localStorage.getItem('ns_sb_key') || '';
+  return (url && key) ? {url, key} : null;
+}
+
+function sbHeaders() {
+  const c = getSbCfg();
+  return {
+    'Content-Type':  'application/json',
+    'apikey':        c.key,
+    'Authorization': `Bearer ${c.key}`,
+    'Prefer':        'return=representation',
+  };
+}
+
+/* ── GITHUB CONFIG (폴백용) ──────────────────────────────── */
 function saveGitHubConfig(owner, repo) {
   const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
   cfg.invest = {owner, repo};
@@ -1171,13 +1206,113 @@ function saveGitHubConfig(owner, repo) {
 }
 
 function autoLoadFromStorage(type) {
-  const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-  const c   = cfg[type === 'invest' ? 'invest' : 'blog'];
-  if (c) loadInsights(type, c.owner, c.repo);
+  if (getSbCfg()) {
+    loadInsightsSb(type);
+  } else {
+    const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    const c   = cfg[type === 'invest' ? 'invest' : 'blog'];
+    if (c) loadInsightsGh(type, c.owner, c.repo);
+  }
 }
 
-/* ── GITHUB ISSUES ───────────────────────────────────────── */
-async function loadInsights(type, owner, repo) {
+/* ── SUPABASE — 인사이트 불러오기 ────────────────────────── */
+async function loadInsightsSb(type) {
+  const label   = type === 'invest' ? 'investment' : 'blog';
+  const gridId  = type === 'invest' ? 'invest-grid'  : 'blog-grid';
+  const countId = type === 'invest' ? 'invest-count' : 'blog-count';
+  const c = getSbCfg();
+  if (!c) return;
+
+  document.getElementById(gridId).innerHTML =
+    `<div class="state-box" style="grid-column:1/-1"><div class="spinner"></div><p>인사이트 불러오는 중…</p></div>`;
+
+  try {
+    const res = await fetch(
+      `${c.url}/rest/v1/insights?type=eq.${label}&order=created_at.desc&limit=50`,
+      { headers: sbHeaders() }
+    );
+    if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    const rows = await res.json();
+
+    document.getElementById(countId).textContent = rows.length;
+    if (type === 'invest') renderInvestStatsSb(rows);
+
+    if (!rows.length) {
+      document.getElementById(gridId).innerHTML =
+        `<div class="state-box" style="grid-column:1/-1"><div class="emoji">🗂️</div><p>아직 인사이트가 없습니다.<br>"+ 새 인사이트" 버튼을 눌러 추가해보세요.</p></div>`;
+      return;
+    }
+    document.getElementById(gridId).innerHTML = rows.map(r => renderInsightCardSb(r, type)).join('');
+  } catch(e) {
+    document.getElementById(gridId).innerHTML =
+      `<div class="state-box" style="grid-column:1/-1"><div class="emoji">⚠️</div><p>오류: ${e.message}<br>Supabase URL/Key를 확인하세요.</p></div>`;
+  }
+}
+
+function renderInsightCardSb(row, type) {
+  const date    = new Date(row.created_at).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'});
+  const body    = (row.body||'').trim().slice(0, 280);
+  const cardCls = type === 'invest' ? 'investment' : 'blog';
+  const tags    = row.tags ? row.tags.split(',').map(t =>
+    `<span class="label-chip watch">${t.trim()}</span>`).join('') : '';
+  return `
+  <div class="insight-card ${cardCls}" id="ic-${row.id}">
+    <div class="insight-header">
+      <div class="insight-title">${row.title}</div>
+      <button onclick="deleteInsight(${row.id},'${type}')"
+        style="flex-shrink:0;margin-left:10px;font-size:11px;color:var(--dim);
+               background:var(--tag-bg);border:1px solid var(--border);
+               border-radius:4px;padding:2px 8px;cursor:pointer;"
+        title="삭제">✕</button>
+    </div>
+    ${body ? `<div class="insight-body">${body}</div>` : ''}
+    ${row.source_url ? `<div style="font-size:11px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+      <a href="${row.source_url}" target="_blank" rel="noopener">🔗 원문 보기</a></div>` : ''}
+    <div class="insight-footer">${tags}<span class="insight-date">${date}</span></div>
+  </div>`;
+}
+
+function renderInvestStatsSb(rows) {
+  document.getElementById('invest-stats').style.display = 'flex';
+  document.getElementById('stat-total').textContent = rows.length;
+  document.getElementById('stat-watch').textContent = rows.filter(r => r.label === 'watch').length;
+  document.getElementById('stat-idea').textContent  = rows.filter(r => r.label === 'idea').length;
+  const latest = rows[0];
+  document.getElementById('stat-latest').textContent = latest
+    ? new Date(latest.created_at).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'}) : '–';
+}
+
+/* ── SUPABASE — 인사이트 저장 ────────────────────────────── */
+async function saveInsightSb(payload) {
+  const c = getSbCfg();
+  const res = await fetch(`${c.url}/rest/v1/insights`, {
+    method: 'POST',
+    headers: sbHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.message || res.status); }
+  return await res.json();
+}
+
+/* ── SUPABASE — 인사이트 삭제 ────────────────────────────── */
+async function deleteInsight(id, type) {
+  if (!confirm('이 인사이트를 삭제할까요?')) return;
+  const c = getSbCfg();
+  try {
+    const res = await fetch(`${c.url}/rest/v1/insights?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: sbHeaders(),
+    });
+    if (!res.ok) throw new Error(res.status);
+    document.getElementById(`ic-${id}`)?.remove();
+    const countId = type === 'invest' ? 'invest-count' : 'blog-count';
+    const cur = parseInt(document.getElementById(countId).textContent || '0');
+    document.getElementById(countId).textContent = Math.max(0, cur - 1);
+  } catch(e) { alert('삭제 실패: ' + e.message); }
+}
+
+/* ── GITHUB ISSUES (폴백) ────────────────────────────────── */
+async function loadInsightsGh(type, owner, repo) {
   const label   = type === 'invest' ? 'investment' : 'blog';
   const gridId  = type === 'invest' ? 'invest-grid'  : 'blog-grid';
   const countId = type === 'invest' ? 'invest-count' : 'blog-count';
@@ -1192,48 +1327,18 @@ async function loadInsights(type, owner, repo) {
     const issues = await res.json();
 
     document.getElementById(countId).textContent = issues.length;
-    if (type === 'invest') {
-      renderInvestStats(issues);
-    } else {
-      // blog
-    }
+    if (type === 'invest') renderInvestStats(issues);
 
     if (!issues.length) {
       document.getElementById(gridId).innerHTML =
-        `<div class="state-box" style="grid-column:1/-1"><div class="emoji">🗂️</div><p>아직 인사이트가 없습니다.<br>"+ 새 인사이트" 버튼을 눌러 추가하거나<br>GitHub에서 직접 Issue를 열어보세요.</p></div>`;
+        `<div class="state-box" style="grid-column:1/-1"><div class="emoji">🗂️</div><p>아직 인사이트가 없습니다.</p></div>`;
       return;
     }
     document.getElementById(gridId).innerHTML = issues.map((issue,i) => renderInsightCard(issue,type,i+1)).join('');
   } catch(e) {
     document.getElementById(gridId).innerHTML =
-      `<div class="state-box" style="grid-column:1/-1"><div class="emoji">⚠️</div><p>오류: ${e.message}<br>repo가 Public인지, owner/repo명이 정확한지 확인하세요.</p></div>`;
+      `<div class="state-box" style="grid-column:1/-1"><div class="emoji">⚠️</div><p>오류: ${e.message}</p></div>`;
   }
-}
-
-function renderInsightCard(issue, type, num) {
-  const labels   = issue.labels.map(l=>`<span class="label-chip ${l.name}">${l.name}</span>`).join('');
-  const date     = new Date(issue.updated_at).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'});
-  const body     = (issue.body||'').replace(/<!--[\s\S]*?-->/g,'').trim().slice(0,280);
-  const cardCls  = type === 'invest' ? 'investment' : 'blog';
-  return `
-  <div class="insight-card ${cardCls}">
-    <div class="insight-header">
-      <div class="insight-title"><a href="${issue.html_url}" target="_blank" rel="noopener">${issue.title}</a></div>
-      <span class="insight-num">#${issue.number}</span>
-    </div>
-    ${body ? `<div class="insight-body">${body}</div>` : ''}
-    <div class="insight-footer">${labels}<span class="insight-date">${date}</span></div>
-  </div>`;
-}
-
-function renderInvestStats(issues) {
-  document.getElementById('invest-stats').style.display = 'flex';
-  document.getElementById('stat-total').textContent = issues.length;
-  document.getElementById('stat-watch').textContent = issues.filter(i=>i.labels.some(l=>l.name==='watch')).length;
-  document.getElementById('stat-idea').textContent  = issues.filter(i=>i.labels.some(l=>l.name==='idea')).length;
-  const latest = issues[0];
-  document.getElementById('stat-latest').textContent = latest
-    ? new Date(latest.updated_at).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'}) : '–';
 }
 
 /* ── MODAL ───────────────────────────────────────────────── */
@@ -1241,7 +1346,6 @@ function openModal(type) {
   currentModalType = type;
   document.getElementById('modal-title').textContent = type === 'investment' ? '새 투자 인사이트' : '새 블로그 아이디어';
   document.getElementById('modal-input-label').value = type === 'investment' ? 'investment' : 'blog';
-  // 일반 호출은 필드 클리어
   document.getElementById('modal-input-title').value = '';
   document.getElementById('modal-input-body').value  = '';
   document.getElementById('modal-input-tags').value  = '';
@@ -1249,7 +1353,6 @@ function openModal(type) {
   setTimeout(() => document.getElementById('modal-input-title').focus(), 80);
 }
 
-/* 뉴스카드에서 직접 저장 — 제목·링크 자동 프리필 */
 function openModalFromCard(type, safeTitle, safeLink) {
   const title = safeTitle.replace(/&quot;/g, '"');
   const link  = decodeURIComponent(safeLink);
@@ -1257,32 +1360,64 @@ function openModalFromCard(type, safeTitle, safeLink) {
   document.getElementById('modal-title').textContent = type === 'investment' ? '📈 투자 인사이트로 저장' : '✍️ 블로그 인사이트로 저장';
   document.getElementById('modal-input-label').value = type === 'investment' ? 'investment' : 'blog';
   document.getElementById('modal-input-title').value = title;
-  document.getElementById('modal-input-body').value  = `> 원문: ${link}\n\n## 메모\n- `;
+  document.getElementById('modal-input-body').value  = `메모:\n- `;
   document.getElementById('modal-input-tags').value  = '';
+  // source_url은 hidden으로 별도 보관
+  document.getElementById('modal-overlay').dataset.sourceUrl = link;
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('modal-input-body').focus(), 80);
 }
 
-function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  delete document.getElementById('modal-overlay').dataset.sourceUrl;
+}
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
 });
 
-function submitInsight() {
-  const title = document.getElementById('modal-input-title').value.trim();
-  const body  = document.getElementById('modal-input-body').value.trim();
-  const label = document.getElementById('modal-input-label').value;
-  const tags  = document.getElementById('modal-input-tags').value.trim();
+async function submitInsight() {
+  const title     = document.getElementById('modal-input-title').value.trim();
+  const body      = document.getElementById('modal-input-body').value.trim();
+  const label     = document.getElementById('modal-input-label').value;
+  const tags      = document.getElementById('modal-input-tags').value.trim();
+  const sourceUrl = document.getElementById('modal-overlay').dataset.sourceUrl || '';
   if (!title) return alert('제목을 입력하세요.');
+
+  const type = currentModalType === 'investment' ? 'investment' : 'blog';
+
+  /* Supabase 연결된 경우 — 인페이지 저장 */
+  if (getSbCfg()) {
+    const btn = document.querySelector('#modal-overlay .btn-submit');
+    btn.textContent = '저장 중…';
+    btn.disabled = true;
+    try {
+      await saveInsightSb({ type, label, title, body, tags, source_url: sourceUrl });
+      closeModal();
+      // 현재 탭 갱신
+      const activeType = type === 'investment' ? 'invest' : 'blog';
+      loadInsightsSb(activeType);
+    } catch(e) {
+      alert('저장 실패: ' + e.message);
+    } finally {
+      btn.textContent = '저장';
+      btn.disabled = false;
+    }
+    return;
+  }
+
+  /* GitHub 폴백 */
   const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-  const c = cfg[currentModalType === 'investment' ? 'invest' : 'blog'];
-  if (!c) return alert('먼저 GitHub 정보를 저장하세요.\n(투자/블로그 탭에서 username과 repo를 입력해주세요)');
-  const fullBody = body + (tags ? `\n\n**태그:** ${tags}` : '');
-  const ghUrl = `https://github.com/${c.owner}/${c.repo}/issues/new?`
+  const c   = cfg[currentModalType === 'investment' ? 'invest' : 'blog'];
+  if (!c) return alert('설정(⚙️)에서 Supabase 또는 GitHub 정보를 먼저 저장하세요.');
+  const fullBody = body + (sourceUrl ? `\n\n**원문:** ${sourceUrl}` : '') + (tags ? `\n\n**태그:** ${tags}` : '');
+  window.open(
+    `https://github.com/${c.owner}/${c.repo}/issues/new?`
     + `title=${encodeURIComponent(title)}`
     + `&body=${encodeURIComponent(fullBody)}`
-    + `&labels=${encodeURIComponent(label)}`;
-  window.open(ghUrl, '_blank');
+    + `&labels=${encodeURIComponent(label)}`,
+    '_blank'
+  );
   closeModal();
 }
 
@@ -1307,14 +1442,21 @@ function toggleTheme() {
 
 /* ── 설정 모달 ────────────────────────────────────────────── */
 function openWorkerModal() {
+  // Supabase 필드 복원
+  const sbUrl = localStorage.getItem('ns_sb_url') || '';
+  const sbKey = localStorage.getItem('ns_sb_key') || '';
+  document.getElementById('cfg-sb-url').value = sbUrl;
+  document.getElementById('cfg-sb-key').value = sbKey;
+  const sbS = document.getElementById('sb-status');
+  sbS.textContent = sbUrl ? '✅ Supabase 연결됨' : '⚪ 미연결';
+  sbS.style.color = sbUrl ? 'var(--green)' : 'var(--dim)';
   // GitHub 필드 복원
   const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
   const c   = cfg.invest || cfg.blog || {};
   document.getElementById('cfg-gh-owner').value = c.owner || '';
   document.getElementById('cfg-gh-repo').value  = c.repo  || '';
   const ghS = document.getElementById('gh-status');
-  ghS.textContent = (c.owner && c.repo)
-    ? `✅ ${c.owner}/${c.repo} 연결됨` : '⚪ 미연결';
+  ghS.textContent = (c.owner && c.repo) ? `✅ ${c.owner}/${c.repo} 연결됨` : '⚪ 미연결';
   ghS.style.color = (c.owner && c.repo) ? 'var(--green)' : 'var(--dim)';
   // Worker 필드 복원
   const savedW = localStorage.getItem('ns_worker_url') || '';
@@ -1334,12 +1476,12 @@ function updateWorkerBtn(connected) {
   const btn   = document.getElementById('worker-btn');
   const icon  = document.getElementById('worker-btn-icon');
   const label = document.getElementById('worker-btn-label');
-  // GitHub 연결 여부도 반영
-  const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-  const ghOk = !!(cfg.invest?.owner);
-  const anyConnected = connected || ghOk;
-  if (anyConnected) {
-    icon.textContent  = ghOk ? '🔗' : '⚡';
+  const sbOk  = !!(localStorage.getItem('ns_sb_url'));
+  const cfg   = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+  const ghOk  = !!(cfg.invest?.owner);
+  const any   = connected || sbOk || ghOk;
+  if (any) {
+    icon.textContent  = sbOk ? '🗄️' : ghOk ? '🔗' : '⚡';
     label.textContent = '설정됨';
     btn.style.color   = 'var(--green)';
     btn.style.borderColor = 'rgba(39,201,122,.4)';
@@ -1353,59 +1495,77 @@ function updateWorkerBtn(connected) {
 
 /* ── 전체 설정 저장 ───────────────────────────────────────── */
 function saveAllSettings() {
+  const sbUrl     = document.getElementById('cfg-sb-url').value.trim().replace(/\/$/, '');
+  const sbKey     = document.getElementById('cfg-sb-key').value.trim();
   const owner     = document.getElementById('cfg-gh-owner').value.trim();
   const repo      = document.getElementById('cfg-gh-repo').value.trim();
   const workerVal = document.getElementById('worker-url-input').value.trim().replace(/\/$/, '');
+  const sbS = document.getElementById('sb-status');
   const wS  = document.getElementById('worker-status');
   const ghS = document.getElementById('gh-status');
 
+  // 유효성
+  if (sbUrl && !sbUrl.startsWith('https://')) {
+    sbS.textContent = '❌ https:// 로 시작해야 해요'; sbS.style.color='var(--red)'; return;
+  }
   if ((owner && !repo) || (!owner && repo)) {
     ghS.textContent = '❌ username과 repo 둘 다 입력하거나 둘 다 비워주세요';
-    ghS.style.color = 'var(--red)';
-    return;
+    ghS.style.color = 'var(--red)'; return;
   }
   if (workerVal && !workerVal.startsWith('https://')) {
-    wS.textContent = '❌ https:// 로 시작해야 해요';
-    wS.style.color = 'var(--red)';
-    return;
+    wS.textContent = '❌ https:// 로 시작해야 해요'; wS.style.color='var(--red)'; return;
   }
 
+  // Supabase 저장
+  if (sbUrl && sbKey) {
+    localStorage.setItem('ns_sb_url', sbUrl);
+    localStorage.setItem('ns_sb_key', sbKey);
+    sbS.textContent = '✅ Supabase 저장됨'; sbS.style.color = 'var(--green)';
+  } else {
+    localStorage.removeItem('ns_sb_url');
+    localStorage.removeItem('ns_sb_key');
+    sbS.textContent = '⚪ 미연결'; sbS.style.color = 'var(--dim)';
+  }
+
+  // GitHub 저장
   if (owner && repo) {
     saveGitHubConfig(owner, repo);
-    ghS.textContent = `✅ ${owner}/${repo} 저장됨`;
-    ghS.style.color = 'var(--green)';
-    if (document.getElementById('tab-invest').classList.contains('active'))
-      loadInsights('invest', owner, repo);
-    if (document.getElementById('tab-blog').classList.contains('active'))
-      loadInsights('blog', owner, repo);
+    ghS.textContent = `✅ ${owner}/${repo} 저장됨`; ghS.style.color = 'var(--green)';
   }
 
+  // Worker 저장
   if (workerVal) {
     localStorage.setItem('ns_worker_url', workerVal);
-    wS.textContent = '✅ Worker 저장됨';
-    wS.style.color = 'var(--green)';
+    wS.textContent = '✅ Worker 저장됨'; wS.style.color = 'var(--green)';
   } else {
     localStorage.removeItem('ns_worker_url');
-    wS.textContent = '⚪ Worker 미설정 (폴백 모드)';
-    wS.style.color = 'var(--dim)';
+    wS.textContent = '⚪ 폴백 모드'; wS.style.color = 'var(--dim)';
   }
 
-  updateWorkerBtn(!!workerVal);
+  updateWorkerBtn(!!(sbUrl || workerVal));
+
+  // 현재 열린 인사이트 탭 갱신
+  if (document.getElementById('tab-invest').classList.contains('active'))
+    autoLoadFromStorage('invest');
+  if (document.getElementById('tab-blog').classList.contains('active'))
+    autoLoadFromStorage('blog');
+
   setTimeout(closeWorkerModal, 700);
 }
 
 function clearSettings() {
-  document.getElementById('cfg-gh-owner').value     = '';
-  document.getElementById('cfg-gh-repo').value      = '';
-  document.getElementById('worker-url-input').value = '';
+  ['cfg-sb-url','cfg-sb-key','cfg-gh-owner','cfg-gh-repo','worker-url-input']
+    .forEach(id => document.getElementById(id).value = '');
+  localStorage.removeItem('ns_sb_url');
+  localStorage.removeItem('ns_sb_key');
+  localStorage.removeItem('ns_worker_url');
   const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
   delete cfg.invest; delete cfg.blog;
   localStorage.setItem(LS_KEY, JSON.stringify(cfg));
-  localStorage.removeItem('ns_worker_url');
-  document.getElementById('gh-status').textContent     = '🗑️ 초기화됨';
-  document.getElementById('gh-status').style.color     = 'var(--dim)';
-  document.getElementById('worker-status').textContent = '🗑️ 초기화됨';
-  document.getElementById('worker-status').style.color = 'var(--dim)';
+  ['sb-status','gh-status','worker-status'].forEach(id => {
+    document.getElementById(id).textContent = '🗑️ 초기화됨';
+    document.getElementById(id).style.color = 'var(--dim)';
+  });
   updateWorkerBtn(false);
 }
 
