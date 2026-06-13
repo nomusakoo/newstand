@@ -166,7 +166,15 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto;}
 .tab-panel.active{display:block;}
 
 /* ─── TOOLBAR ────────────────────────────────────────────── */
-.toolbar{display:flex;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+.toolbar{display:flex;align-items:flex-start;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.filter-divider{
+  width:100%;height:1px;background:var(--border);
+  transition:margin .32s cubic-bezier(.4,0,.2,1), height .32s, opacity .25s;
+  opacity:1;margin:2px 0;
+}
+.filter-divider.folded-both{
+  height:0;opacity:0;margin:0;
+}
 .filter-row{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:0;}
 .filter-btn{
   padding:5px 11px;border-radius:20px;font-size:12px;font-weight:500;
@@ -402,7 +410,21 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   animation:spin .7s linear infinite;margin:0 auto 14px;
 }
 
-/* ─── 금융 대시보드 ──────────────────────────────────────── */
+/* ─── 로고 새로고침 스피너 ───────────────────────────────── */
+.logo-spinner{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  border:1.5px solid var(--muted);border-top-color:var(--accent);
+  animation:spin .7s linear infinite;
+  opacity:0;transition:opacity .2s;margin-left:6px;vertical-align:middle;
+}
+.logo-spinner.active{opacity:1;}
+
+/* ─── 금융 대시보드 sticky ───────────────────────────────── */
+#finance-bar{
+  position:sticky;
+  top:calc(var(--ticker-h) + var(--header-h));
+  z-index:97;
+}
 #finance-bar::-webkit-scrollbar{display:none;}
 .fi-item{
   display:inline-flex;align-items:center;gap:5px;
@@ -418,13 +440,40 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .fi-chg.flat{color:var(--dim);}
 .fi-skeleton{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
 
-/* 금융바 높이만큼 sticky 오프셋 보정 */
+/* 탭 sticky — 금융바 높이(36px) 포함 */
 .tabs{top:calc(var(--ticker-h) + var(--header-h) + 36px);}
 @media(max-width:640px){
   .tabs{top:calc(var(--ticker-h) + 50px + 36px);}
-  #finance-bar{padding:0 14px;}
+  #finance-bar{padding:0 14px;top:calc(var(--ticker-h) + 50px);}
   .fi-item{padding:0 8px;}
 }
+
+/* ─── 필터 행 접기/펴기 ──────────────────────────────────── */
+.filter-section{
+  display:flex;align-items:flex-start;gap:6px;width:100%;
+  transition:margin .3s cubic-bezier(.4,0,.2,1);
+}
+.filter-section.folded{margin-bottom:-2px;}
+.fold-btn{
+  flex-shrink:0;width:20px;height:20px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--panel);border:1px solid var(--border);border-radius:5px;
+  color:var(--dim);font-size:11px;cursor:pointer;
+  transition:all .2s;margin-top:1px;
+}
+.fold-btn:hover{color:var(--bright);border-color:var(--muted);}
+.fold-btn.folded{color:var(--accent);border-color:var(--accent);background:rgba(79,138,255,.08);}
+.filter-row-wrap{
+  overflow:hidden;
+  max-height:120px;
+  transition:max-height .32s cubic-bezier(.4,0,.2,1), opacity .25s ease;
+  opacity:1;flex:1;
+}
+.filter-row-wrap.folded{
+  max-height:0;
+  opacity:0;
+}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;}
 @media(max-width:640px){
   body{padding-bottom:calc(60px + var(--safe-bottom));}
   .tabs{display:none;}
@@ -503,9 +552,10 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 
 <!-- ─── HEADER ─────────────────────────────────────────────── -->
 <header>
-  <div class="logo" onclick="loadAllNews(true)" title="클릭하여 새로고침" style="cursor:pointer;">
+  <div class="logo" onclick="refreshFromLogo()" title="클릭하여 새로고침" style="cursor:pointer;">
     <span class="logo-main">◉ NEWSTAND</span>
     <span class="logo-sub">우회의 가판대</span>
+    <span class="logo-spinner" id="logo-spinner"></span>
   </div>
   <div class="header-right">
     <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="테마 전환">
@@ -571,35 +621,45 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 
   <div class="toolbar">
     <!-- 발행사 필터 -->
-    <div class="filter-row" id="source-filters">
-      <button class="filter-btn active" data-source="all">전체</button>
-      <button class="filter-btn" data-source="연합-최신">연합-최신</button>
-      <button class="filter-btn" data-source="연합-정치">연합-정치</button>
-      <button class="filter-btn" data-source="연합-경제">연합-경제</button>
-      <button class="filter-btn" data-source="연합-마켓">연합-마켓</button>
-      <button class="filter-btn" data-source="연합-산업">연합-산업</button>
-      <button class="filter-btn" data-source="연합-사회">연합-사회</button>
-      <button class="filter-btn" data-source="연합-세계">연합-세계</button>
-      <button class="filter-btn" data-source="연합-문화">연합-문화</button>
-      <button class="filter-btn" data-source="연합-건강">연합-건강</button>
-      <button class="filter-btn" data-source="한국경제">한국경제</button>
-      <button class="filter-btn" data-source="매일경제">매일경제</button>
-      <button class="filter-btn" data-source="매일노동뉴스">매일노동뉴스</button>
+    <div class="filter-section">
+      <button class="fold-btn" id="fold-source" onclick="toggleFold('source')" title="접기">–</button>
+      <div class="filter-row-wrap" id="wrap-source">
+        <div class="filter-row" id="source-filters">
+          <button class="filter-btn active" data-source="all">전체</button>
+          <button class="filter-btn" data-source="연합-최신">연합-최신</button>
+          <button class="filter-btn" data-source="연합-정치">연합-정치</button>
+          <button class="filter-btn" data-source="연합-경제">연합-경제</button>
+          <button class="filter-btn" data-source="연합-마켓">연합-마켓</button>
+          <button class="filter-btn" data-source="연합-산업">연합-산업</button>
+          <button class="filter-btn" data-source="연합-사회">연합-사회</button>
+          <button class="filter-btn" data-source="연합-세계">연합-세계</button>
+          <button class="filter-btn" data-source="연합-문화">연합-문화</button>
+          <button class="filter-btn" data-source="연합-건강">연합-건강</button>
+          <button class="filter-btn" data-source="한국경제">한국경제</button>
+          <button class="filter-btn" data-source="매일경제">매일경제</button>
+          <button class="filter-btn" data-source="매일노동뉴스">매일노동뉴스</button>
+        </div>
+      </div>
     </div>
     <!-- 키워드 필터 -->
     <div class="filter-divider"></div>
-    <div class="filter-row" id="keyword-filters">
-      <button class="filter-btn keyword-btn active" data-keyword="all">전체</button>
-      <button class="filter-btn keyword-btn" data-keyword="노동">노동</button>
-      <button class="filter-btn keyword-btn" data-keyword="기술">기술</button>
-      <button class="filter-btn keyword-btn" data-keyword="주식">주식</button>
-      <button class="filter-btn keyword-btn" data-keyword="부동산">부동산</button>
-      <button class="filter-btn keyword-btn" data-keyword="경제">경제</button>
-      <button class="filter-btn keyword-btn" data-keyword="사회">사회</button>
-      <button class="filter-btn keyword-btn" data-keyword="건강">건강</button>
-      <button class="filter-btn keyword-btn" data-keyword="문화">문화</button>
-      <button class="filter-btn keyword-btn" data-keyword="정치">정치</button>
-      <button class="filter-btn keyword-btn" data-keyword="글로벌">글로벌</button>
+    <div class="filter-section">
+      <button class="fold-btn" id="fold-keyword" onclick="toggleFold('keyword')" title="접기">–</button>
+      <div class="filter-row-wrap" id="wrap-keyword">
+        <div class="filter-row" id="keyword-filters">
+          <button class="filter-btn keyword-btn active" data-keyword="all">전체</button>
+          <button class="filter-btn keyword-btn" data-keyword="노동">노동</button>
+          <button class="filter-btn keyword-btn" data-keyword="기술">기술</button>
+          <button class="filter-btn keyword-btn" data-keyword="주식">주식</button>
+          <button class="filter-btn keyword-btn" data-keyword="부동산">부동산</button>
+          <button class="filter-btn keyword-btn" data-keyword="경제">경제</button>
+          <button class="filter-btn keyword-btn" data-keyword="사회">사회</button>
+          <button class="filter-btn keyword-btn" data-keyword="건강">건강</button>
+          <button class="filter-btn keyword-btn" data-keyword="문화">문화</button>
+          <button class="filter-btn keyword-btn" data-keyword="정치">정치</button>
+          <button class="filter-btn keyword-btn" data-keyword="글로벌">글로벌</button>
+        </div>
+      </div>
     </div>
     <div class="toolbar-right">
       <button class="refresh-btn" id="news-refresh-btn" onclick="loadAllNews(true)">
@@ -1763,6 +1823,31 @@ function clearSettings() {
 }
 
 /* ── 금융 데이터 전용 fetch (AbortSignal 없이 타임아웃 처리) */
+/* ── 로고 클릭 새로고침 ──────────────────────────────────── */
+async function refreshFromLogo() {
+  const spinner = document.getElementById('logo-spinner');
+  spinner.classList.add('active');
+  await loadAllNews(true);
+  spinner.classList.remove('active');
+}
+
+/* ── 필터 접기/펴기 ──────────────────────────────────────── */
+const foldState = {source: false, keyword: false};
+function toggleFold(type) {
+  foldState[type] = !foldState[type];
+  const wrap = document.getElementById(`wrap-${type}`);
+  const btn  = document.getElementById(`fold-${type}`);
+  const sec  = btn.closest('.filter-section');
+  wrap.classList.toggle('folded', foldState[type]);
+  btn.classList.toggle('folded', foldState[type]);
+  sec.classList.toggle('folded', foldState[type]);
+  btn.textContent = foldState[type] ? '+' : '–';
+  btn.title = foldState[type] ? '펼치기' : '접기';
+  // 둘 다 접히면 divider도 숨김
+  const divider = document.querySelector('.filter-divider');
+  if (divider) divider.classList.toggle('folded-both', foldState.source && foldState.keyword);
+}
+
 function fetchFinanceWithTimeout(url, options = {}, ms = 8000) {
   return Promise.race([
     fetch(url, options),
@@ -1805,8 +1890,10 @@ async function fetchFinanceData() {
       quotes.forEach(q => {
         const item = FINANCE_ITEMS.find(i => i.symbol === q.symbol);
         if (item) results[item.id] = {
-          val: q.regularMarketPrice,
-          chg: q.regularMarketChangePercent,
+          // 장 마감/주말엔 regularMarketPrice = 마지막 거래가 (정상)
+          val: q.regularMarketPrice ?? q.previousClose,
+          chg: q.regularMarketChangePercent ?? 0,
+          closed: q.marketState !== 'REGULAR', // 장 외 시간 여부
         };
       });
     }
@@ -1865,23 +1952,28 @@ async function renderFinanceBar() {
   const now  = new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
 
   const html = FINANCE_ITEMS.map(item => {
-    const d    = data[item.id];
-    const val  = d?.val;
-    const chg  = d?.chg;
+    const d      = data[item.id];
+    const val    = d?.val;
+    const chg    = d?.chg;
+    const closed = d?.closed;
     const chgStr = chg != null
       ? (chg >= 0 ? '▲' : '▼') + Math.abs(chg).toFixed(2) + '%'
       : '';
-    const chgCls = chg == null ? 'flat' : chg > 0 ? 'up' : chg < 0 ? 'dn' : 'flat';
+    const chgCls = chg == null ? 'flat' : chg > 0.001 ? 'up' : chg < -0.001 ? 'dn' : 'flat';
+    const closedMark = closed ? '<span style="font-size:9px;color:var(--muted);margin-left:1px;">●</span>' : '';
     return `<span class="fi-item">
       <span class="fi-label">${item.label}</span>
       <span class="fi-val">${formatFinanceVal(item.id, val)}</span>
       ${chgStr ? `<span class="fi-chg ${chgCls}">${chgStr}</span>` : ''}
+      ${closedMark}
     </span>`;
   }).join('');
 
   document.getElementById('finance-items').innerHTML =
     `<span style="font-family:var(--font-mono);font-size:10px;color:var(--dim);padding-right:12px;border-right:1px solid var(--border);margin-right:0;">📊 시장</span>` + html;
-  document.getElementById('finance-updated').textContent = `15분지연 ${now}`;
+  const isWeekend = [0,6].includes(new Date().getDay());
+  const delayNote = isWeekend ? '주말·직전종가' : '15분지연';
+  document.getElementById('finance-updated').textContent = `${delayNote} ${now}`;
 }
 
 // 금융 데이터 주기적 갱신 (5분마다)
