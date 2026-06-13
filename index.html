@@ -1017,11 +1017,22 @@ function parseXmlItems(xml) {
   });
 }
 
-/* 1순위: 내 Cloudflare Worker (무제한) */
+/* ── 타임아웃 래퍼 ───────────────────────────────────────── */
+function fetchWithTimeout(url, options = {}, ms = 6000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
+/* 1순위: 내 Cloudflare Worker (무제한 + 엣지 캐시) */
 async function fetchViaWorker(url) {
   if (!WORKER_URL) throw new Error('Worker URL 미설정');
+  // Worker는 엣지에서 응답하므로 타임아웃을 넉넉하게
   const endpoint = `${WORKER_URL}?url=${encodeURIComponent(url)}`;
-  const res = await fetch(endpoint, { cache: 'no-store' });
+  const res = await fetchWithTimeout(endpoint, {
+    // cache: 'default' — Worker 엣지 캐시 활용 (no-store 제거)
+  }, 8000);
   if (!res.ok) throw new Error(`Worker ${res.status}`);
   const xml = await res.text();
   const items = parseXmlItems(xml);
@@ -1029,19 +1040,19 @@ async function fetchViaWorker(url) {
   return items;
 }
 
-/* 2순위: AllOrigins (무료, 제한 느슨) */
+/* 2순위: AllOrigins — 타임아웃 5초 */
 async function fetchViaAllOrigins(url) {
   const endpoint = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-  const res  = await fetch(endpoint, { cache: 'no-store' });
+  const res  = await fetchWithTimeout(endpoint, { cache: 'no-store' }, 5000);
   const data = await res.json();
   if (!data.contents) throw new Error('allorigins: empty');
   return parseXmlItems(data.contents);
 }
 
-/* 3순위: corsproxy.io */
+/* 3순위: corsproxy.io — 타임아웃 5초 */
 async function fetchViaCorsProxy(url) {
   const endpoint = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-  const res = await fetch(endpoint, { cache: 'no-store' });
+  const res = await fetchWithTimeout(endpoint, { cache: 'no-store' }, 5000);
   if (!res.ok) throw new Error(`corsproxy: ${res.status}`);
   return parseXmlItems(await res.text());
 }
@@ -1058,8 +1069,10 @@ async function fetchFeed(feed) {
     }
   } catch {}
 
+  // Worker 설정 시 Worker만 시도 (폴백 없이 빠르게)
+  // Worker 미설정 시 AllOrigins → corsproxy 순서
   const strategies = WORKER_URL
-    ? [fetchViaWorker, fetchViaAllOrigins, fetchViaCorsProxy]
+    ? [fetchViaWorker]
     : [fetchViaAllOrigins, fetchViaCorsProxy];
 
   for (const fn of strategies) {
@@ -1070,6 +1083,19 @@ async function fetchFeed(feed) {
       return items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
     } catch (e) {
       console.warn(`[${feed.name}] ${fn.name} 실패:`, e.message);
+      // Worker 실패 시 폴백
+      if (fn === fetchViaWorker) {
+        for (const fallback of [fetchViaAllOrigins, fetchViaCorsProxy]) {
+          try {
+            const items = await fallback(feed.url);
+            if (!items.length) continue;
+            try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), items })); } catch {}
+            return items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
+          } catch (fe) {
+            console.warn(`[${feed.name}] ${fallback.name} 폴백 실패:`, fe.message);
+          }
+        }
+      }
     }
   }
   console.error(`[${feed.name}] 모든 프록시 실패 — ${feed.url}`);
