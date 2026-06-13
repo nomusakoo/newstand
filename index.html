@@ -1207,10 +1207,14 @@ function renderNews() {
   if (currentSource !== 'all')  filtered = filtered.filter(n => n.source === currentSource);
   if (currentKeyword !== 'all') filtered = filtered.filter(n => matchesKeyword(n, currentKeyword));
 
-  const top12 = filtered.slice(0, 12);
-  document.getElementById('news-count').textContent = top12.length;
+  // 전체 탭: 피드 수 × 2 (최소 12, 최대 30) / 소스 필터 시: 12개 고정
+  const displayCount = currentSource === 'all'
+    ? Math.min(Math.max(RSS_FEEDS.length * 2, 12), 30)
+    : 12;
+  const topN = filtered.slice(0, displayCount);
+  document.getElementById('news-count').textContent = topN.length;
 
-  if (top12.length === 0) {
+  if (topN.length === 0) {
     document.getElementById('news-grid').innerHTML = `
       <div class="state-box" style="grid-column:1/-1">
         <div class="emoji">📭</div>
@@ -1222,7 +1226,7 @@ function renderNews() {
     return;
   }
 
-  document.getElementById('news-grid').innerHTML = top12.map((item, i) => {
+  document.getElementById('news-grid').innerHTML = topN.map((item, i) => {
     const rank     = i + 1;
     const rankCls  = rank <= 3 ? `rank-${rank}` : '';
     const timeStr  = item.pubDate
