@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우회의 가판대 · NEWSSTAND</title>
+<style>
+  /* ─── TOKENS ─────────────────────────────────────────────── */
+  :root {
+    --ink:       #0d0f14;
+    --surface:   #131720;
+    --panel:     #1a2030;
+    --border:    #252d3d;
+    --muted:     #3a4560;
+    --dim:       #6b7a9a;
+    --text:      #c8d4e8;
+    --bright:    #e8f0ff;
+    --accent:    #4f8aff;
+    --accent2:   #f5a623;
+    --green:     #27c97a;
+    --red:       #ff5a5a;
+    --tag-bg:    #1e2a42;
+    --font-mono: 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace;
+    --font-body: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  }
+
+  /* ─── RESET ──────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { cursor: pointer; border: none; background: none; font-family: inherit; }
+
+  /* ─── TICKER BAR ─────────────────────────────────────────── */
+  .ticker-wrap {
+    background: var(--accent);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: .04em;
+    height: 26px;
+    overflow: hidden;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .ticker-inner {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    white-space: nowrap;
+    animation: ticker 40s linear infinite;
+  }
+  .ticker-inner span { margin: 0 32px; }
+  @keyframes ticker { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }
+
+  /* ─── HEADER ─────────────────────────────────────────────── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 26px;
+    z-index: 99;
+  }
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .logo-main {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--bright);
+    letter-spacing: -.02em;
+  }
+  .logo-sub {
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .header-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .live-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    margin-right: 5px;
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+  /* ─── TABS ───────────────────────────────────────────────── */
+  .tabs {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    gap: 2px;
+    position: sticky;
+    top: 82px;
+    z-index: 98;
+  }
+  .tab-btn {
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--dim);
+    border-bottom: 2px solid transparent;
+    transition: color .2s, border-color .2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn.active { color: var(--bright); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+  .tab-icon { font-size: 14px; }
+
+  /* ─── MAIN LAYOUT ────────────────────────────────────────── */
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ─── TOOLBAR ────────────────────────────────────────────── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .filter-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--panel);
+    color: var(--dim);
+    border: 1px solid var(--border);
+    transition: all .15s;
+  }
+  .filter-btn.active, .filter-btn:hover {
+    background: var(--tag-bg);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .refresh-btn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 12px;
+    transition: all .15s;
+  }
+  .refresh-btn:hover { color: var(--bright); border-color: var(--muted); }
+  .refresh-btn.spinning svg { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── NEWS GRID ──────────────────────────────────────────── */
+  .news-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+  }
+  .news-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color .15s, transform .15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .news-card:hover { border-color: var(--muted); transform: translateY(-1px); }
+  .news-card.rank-1 { border-left: 3px solid var(--accent2); }
+  .news-card.rank-2 { border-left: 3px solid var(--accent); }
+  .news-card.rank-3 { border-left: 3px solid var(--green); }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .card-rank {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--muted);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .news-card.rank-1 .card-rank { color: var(--accent2); }
+  .news-card.rank-2 .card-rank { color: var(--accent); }
+  .news-card.rank-3 .card-rank { color: var(--green); }
+
+  .card-source-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--dim);
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .card-source { color: var(--accent); font-weight: 600; display: block; }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--bright);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-title a:hover { color: var(--accent); }
+  .card-snippet {
+    font-size: 12px;
+    color: var(--dim);
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 4px;
+  }
+  .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: var(--tag-bg);
+    color: var(--dim);
+    border: 1px solid var(--border);
+  }
+  .tag.topic { color: var(--accent); border-color: var(--accent); background: rgba(79,138,255,.08); }
+
+  /* ─── TOP 10 HERO ────────────────────────────────────────── */
+  .top10-hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 768px) { .top10-hero { grid-template-columns: 1fr; } }
+  .hero-card {
+    background: linear-gradient(135deg, var(--panel) 0%, #1e2840 100%);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    grid-column: span 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-card.featured {
+    grid-column: span 2;
+    background: linear-gradient(135deg, #1a2540 0%, #0f1a30 100%);
+    border-color: var(--accent);
+  }
+  @media (max-width: 768px) { .hero-card.featured { grid-column: span 1; } }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 3px;
+    margin-bottom: 10px;
+  }
+  .hero-badge.hot { background: rgba(245,166,35,.15); color: var(--accent2); border: 1px solid var(--accent2); }
+  .hero-badge.top { background: rgba(79,138,255,.12); color: var(--accent); border: 1px solid var(--accent); }
+  .hero-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--bright);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .hero-card.featured .hero-title { font-size: 20px; }
+  .hero-meta { font-family: var(--font-mono); font-size: 11px; color: var(--dim); }
+
+  /* ─── SECTION HEADER ─────────────────────────────────────── */
+  .section-hd {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-hd h2 {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--dim);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .section-hd .count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(79,138,255,.1);
+    padding: 2px 7px;
+    border-radius: 3px;
+  }
+
+  /* ─── INSIGHT CARDS ──────────────────────────────────────── */
+  .insight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 14px;
+  }
+  .insight-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color .15s;
+  }
+  .insight-card:hover { border-color: var(--muted); }
+  .insight-card.investment { border-top: 2px solid var(--green); }
+  .insight-card.blog { border-top: 2px solid var(--accent2); }
+
+  .insight-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .insight-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--bright);
+    line-height: 1.4;
+    flex: 1;
+  }
+  .insight-title a:hover { color: var(--accent); }
+  .insight-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+    margin-left: 10px;
+  }
+  .insight-body {
+    font-size: 13px;
+    color: var(--dim);
+    line-height: 1.7;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .insight-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .label-chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .label-chip.investment { background: rgba(39,201,122,.12); color: var(--green); border: 1px solid rgba(39,201,122,.3); }
+  .label-chip.blog { background: rgba(245,166,35,.12); color: var(--accent2); border: 1px solid rgba(245,166,35,.3); }
+  .label-chip.watch { background: rgba(79,138,255,.12); color: var(--accent); border: 1px solid rgba(79,138,255,.3); }
+  .label-chip.idea { background: rgba(255,90,90,.1); color: var(--red); border: 1px solid rgba(255,90,90,.25); }
+  .insight-date { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  /* ─── NEW INSIGHT FORM ───────────────────────────────────── */
+  .add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    transition: opacity .15s;
+  }
+  .add-btn:hover { opacity: .85; }
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--muted);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 540px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .modal h3 { font-size: 16px; font-weight: 700; color: var(--bright); }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 12px; color: var(--dim); font-weight: 500; }
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    background: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color .15s;
+    width: 100%;
+    resize: vertical;
+  }
+  .form-group input:focus,
+  .form-group textarea:focus,
+  .form-group select:focus { border-color: var(--accent); }
+  .form-group textarea { min-height: 100px; }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+  .modal-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 4px;
+  }
+  .btn-cancel {
+    padding: 8px 16px;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 13px;
+  }
+  .btn-cancel:hover { color: var(--text); border-color: var(--muted); }
+  .btn-submit {
+    padding: 8px 18px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    transition: opacity .15s;
+  }
+  .btn-submit:hover { opacity: .85; }
+
+  /* ─── GITHUB CONFIG ──────────────────────────────────────── */
+  .config-bar {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .config-bar label { font-size: 12px; color: var(--dim); flex-shrink: 0; }
+  .config-bar input {
+    flex: 1;
+    min-width: 160px;
+    background: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+  }
+  .config-bar input:focus { border-color: var(--accent); }
+  .config-save {
+    padding: 6px 14px;
+    border-radius: 5px;
+    background: var(--muted);
+    color: var(--bright);
+    font-size: 12px;
+    font-weight: 600;
+    transition: background .15s;
+  }
+  .config-save:hover { background: var(--accent); }
+
+  /* ─── EMPTY / LOADING ────────────────────────────────────── */
+  .state-box {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--dim);
+  }
+  .state-box .emoji { font-size: 36px; margin-bottom: 12px; }
+  .state-box p { font-size: 13px; line-height: 1.8; }
+  .state-box a { color: var(--accent); text-decoration: underline; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  /* ─── STATS BAR ──────────────────────────────────────────── */
+  .stats-bar {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .stat-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 12px 18px;
+    flex: 1;
+    min-width: 120px;
+  }
+  .stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+  .stat-val { font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--bright); margin-top: 2px; }
+  .stat-val.green { color: var(--green); }
+  .stat-val.yellow { color: var(--accent2); }
+  .stat-val.blue { color: var(--accent); }
+
+  /* ─── SETUP GUIDE ────────────────────────────────────────── */
+  .setup-guide {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .setup-guide h3 { font-size: 14px; font-weight: 700; color: var(--bright); margin-bottom: 12px; }
+  .setup-steps { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .setup-steps li {
+    font-size: 12px;
+    color: var(--dim);
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    line-height: 1.6;
+  }
+  .step-num {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(79,138,255,.12);
+    border: 1px solid rgba(79,138,255,.25);
+    border-radius: 3px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--ink);
+    color: var(--accent2);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ─── RESPONSIVE ─────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    main { padding: 16px; }
+    .tabs { padding: 0 12px; overflow-x: auto; }
+    .tab-btn { padding: 10px 12px; font-size: 12px; white-space: nowrap; }
+    header { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-inner" id="ticker">
+    <span>📰 뉴스 가판대 로딩 중...</span>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <span class="logo-main">◉ NEWSSTAND</span>
+    <span class="logo-sub">우회의 가판대</span>
+  </div>
+  <div class="header-meta">
+    <span><span class="live-dot"></span>LIVE</span>
+    <span id="clock"></span>
+  </div>
+</header>
+
+<!-- TABS -->
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="news">
+    <span class="tab-icon">📡</span> 실시간 뉴스
+  </button>
+  <button class="tab-btn" data-tab="invest">
+    <span class="tab-icon">📈</span> 투자 인사이트
+  </button>
+  <button class="tab-btn" data-tab="blog">
+    <span class="tab-icon">✍️</span> 블로그 인사이트
+  </button>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 1 · 실시간 뉴스
+═══════════════════════════════════════════════════════════ -->
+<main>
+<section class="tab-panel active" id="tab-news">
+
+  <!-- toolbar -->
+  <div class="toolbar">
+    <div class="filter-group" id="source-filters">
+      <button class="filter-btn active" data-source="all">전체</button>
+      <button class="filter-btn" data-source="연합뉴스">연합뉴스</button>
+      <button class="filter-btn" data-source="한국경제">한국경제</button>
+      <button class="filter-btn" data-source="매일경제">매일경제</button>
+      <button class="filter-btn" data-source="조선비즈">조선비즈</button>
+    </div>
+    <button class="refresh-btn" id="news-refresh-btn" onclick="loadAllNews()">
+      <svg id="refresh-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      새로고침
+    </button>
+  </div>
+
+  <!-- top 10 section -->
+  <div class="section-hd">
+    <h2>🔥 TOP 10</h2>
+    <span class="count" id="news-count">0</span>
+  </div>
+  <div class="news-grid" id="news-grid">
+    <div class="state-box" style="grid-column:1/-1">
+      <div class="spinner"></div>
+      <p>뉴스를 불러오는 중…</p>
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 2 · 투자 인사이트
+═══════════════════════════════════════════════════════════ -->
+<section class="tab-panel" id="tab-invest">
+
+  <!-- GitHub config -->
+  <div class="config-bar" id="invest-config">
+    <label>GitHub</label>
+    <input type="text" id="gh-owner" placeholder="username" value="">
+    <span style="color:var(--muted)">/</span>
+    <input type="text" id="gh-repo" placeholder="my-insights" value="">
+    <button class="config-save" onclick="saveConfig()">저장 & 로드</button>
+  </div>
+
+  <!-- setup guide (shown when not configured) -->
+  <div class="setup-guide" id="invest-setup">
+    <h3>⚡ GitHub Issues 연동 방법</h3>
+    <ul class="setup-steps">
+      <li><span class="step-num">01</span> GitHub에 새 repo 생성 (예: <code>my-insights</code>) — Public 권장</li>
+      <li><span class="step-num">02</span> repo → Labels 탭에서 라벨 생성: <code>investment</code>, <code>blog</code>, <code>watch</code>, <code>idea</code></li>
+      <li><span class="step-num">03</span> Issues 탭에서 새 Issue 작성 → 제목·내용 작성 → 라벨 <code>investment</code> 부착</li>
+      <li><span class="step-num">04</span> 위 입력창에 GitHub username과 repo명 입력 → "저장 & 로드" 클릭</li>
+      <li><span class="step-num">05</span> 이 HTML을 <code>index.html</code>로 저장해 GitHub Pages 배포 (Settings → Pages → main/root)</li>
+    </ul>
+  </div>
+
+  <!-- stats -->
+  <div class="stats-bar" id="invest-stats" style="display:none">
+    <div class="stat-item"><div class="stat-label">전체 인사이트</div><div class="stat-val blue" id="stat-total">–</div></div>
+    <div class="stat-item"><div class="stat-label">Watch 종목</div><div class="stat-val green" id="stat-watch">–</div></div>
+    <div class="stat-item"><div class="stat-label">아이디어</div><div class="stat-val yellow" id="stat-idea">–</div></div>
+    <div class="stat-item"><div class="stat-label">최근 업데이트</div><div class="stat-val" id="stat-latest" style="font-size:13px">–</div></div>
+  </div>
+
+  <div class="section-hd">
+    <h2>📈 투자 인사이트</h2>
+    <span class="count" id="invest-count">0</span>
+    <button class="add-btn" style="margin-left:auto" onclick="openModal('investment')">+ 새 인사이트</button>
+  </div>
+  <div class="insight-grid" id="invest-grid">
+    <div class="state-box" style="grid-column:1/-1">
+      <div class="emoji">📈</div>
+      <p>GitHub 정보를 입력하고 로드하세요.<br>또는 직접 인사이트를 추가해보세요.</p>
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 3 · 블로그 인사이트
+═══════════════════════════════════════════════════════════ -->
+<section class="tab-panel" id="tab-blog">
+
+  <div class="config-bar" id="blog-config">
+    <label>GitHub</label>
+    <input type="text" id="gh-owner-b" placeholder="username">
+    <span style="color:var(--muted)">/</span>
+    <input type="text" id="gh-repo-b" placeholder="my-insights">
+    <button class="config-save" onclick="saveConfigBlog()">저장 & 로드</button>
+  </div>
+
+  <div class="setup-guide" id="blog-setup">
+    <h3>✍️ 블로그 포스팅 인사이트 활용법</h3>
+    <ul class="setup-steps">
+      <li><span class="step-num">01</span> 투자 인사이트와 같은 repo 사용 가능 (라벨만 다르게)</li>
+      <li><span class="step-num">02</span> 라벨 <code>blog</code>: 포스팅 아이디어 / 초안 메모</li>
+      <li><span class="step-num">03</span> 라벨 <code>idea</code>: 키워드 리서치 / 트렌드 메모</li>
+      <li><span class="step-num">04</span> Issue 본문에 마크다운으로 구성 → GitHub에서 바로 편집 가능</li>
+      <li><span class="step-num">05</span> Issue 닫기(Close) = 포스팅 완료 처리</li>
+    </ul>
+  </div>
+
+  <div class="section-hd">
+    <h2>✍️ 블로그 아이디어 & 인사이트</h2>
+    <span class="count" id="blog-count">0</span>
+    <button class="add-btn" style="margin-left:auto" onclick="openModal('blog')">+ 새 아이디어</button>
+  </div>
+  <div class="insight-grid" id="blog-grid">
+    <div class="state-box" style="grid-column:1/-1">
+      <div class="emoji">✍️</div>
+      <p>GitHub 정보를 입력하고 로드하세요.<br>세모글 포스팅 아이디어를 관리해보세요.</p>
+    </div>
+  </div>
+
+</section>
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h3 id="modal-title">새 인사이트 추가</h3>
+    <div class="form-group">
+      <label>제목</label>
+      <input type="text" id="modal-input-title" placeholder="인사이트 제목을 입력하세요">
+    </div>
+    <div class="form-group">
+      <label>내용 (마크다운 지원)</label>
+      <textarea id="modal-input-body" placeholder="- 핵심 포인트&#10;- 관련 티커: $AAPL&#10;- 참고 링크: https://..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>카테고리</label>
+        <select id="modal-input-label">
+          <option value="investment">📈 Investment</option>
+          <option value="watch">👀 Watch</option>
+          <option value="idea">💡 Idea</option>
+          <option value="blog">✍️ Blog</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>태그 (쉼표 구분)</label>
+        <input type="text" id="modal-input-tags" placeholder="배터리, 로보틱스, ETF">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">취소</button>
+      <button class="btn-submit" id="modal-submit-btn" onclick="submitInsight()">GitHub에 저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ────────────────────────────────────────────────
+   CONSTANTS & CONFIG
+──────────────────────────────────────────────── */
+const RSS_FEEDS = [
+  { name: '연합뉴스', url: 'https://www.yonhapnewstv.co.kr/category/news/headline/feed/', topic: '종합' },
+  { name: '연합뉴스', url: 'https://www.yna.co.kr/rss/economy.xml', topic: '경제' },
+  { name: '한국경제', url: 'https://www.hankyung.com/feed/economy', topic: '경제' },
+  { name: '한국경제', url: 'https://www.hankyung.com/feed/finance', topic: '금융' },
+  { name: '매일경제', url: 'https://www.mk.co.kr/rss/30100041/', topic: '경제' },
+  { name: '매일경제', url: 'https://www.mk.co.kr/rss/50200011/', topic: '증권' },
+  { name: '조선비즈', url: 'https://biz.chosun.com/arc/outboundfeeds/rss/category/economy/', topic: '경제' },
+];
+
+const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
+let allNews = [];
+let currentSource = 'all';
+let currentModalType = 'investment';
+
+const LS_KEY = 'newsstand_gh';
+
+/* ────────────────────────────────────────────────
+   CLOCK
+──────────────────────────────────────────────── */
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ────────────────────────────────────────────────
+   TABS
+──────────────────────────────────────────────── */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const id = 'tab-' + btn.dataset.tab;
+    document.getElementById(id).classList.add('active');
+    // auto-load on first visit
+    if (btn.dataset.tab === 'invest' && document.getElementById('invest-grid').children.length <= 1) {
+      autoLoadFromStorage('invest');
+    }
+    if (btn.dataset.tab === 'blog' && document.getElementById('blog-grid').children.length <= 1) {
+      autoLoadFromStorage('blog');
+    }
+  });
+});
+
+/* ────────────────────────────────────────────────
+   NEWS · RSS LOADING
+──────────────────────────────────────────────── */
+async function fetchFeed(feed) {
+  try {
+    const res = await fetch(RSS2JSON + encodeURIComponent(feed.url) + '&count=10', { cache: 'no-store' });
+    const data = await res.json();
+    if (data.status !== 'ok') return [];
+    return data.items.map((item, i) => ({
+      title: item.title,
+      link: item.link,
+      snippet: item.description ? item.description.replace(/<[^>]*>/g, '').trim().slice(0, 120) : '',
+      pubDate: item.pubDate,
+      source: feed.name,
+      topic: feed.topic,
+      score: (10 - i) * 10 + Math.random() * 5 // simulate popularity (RSS has no view count)
+    }));
+  } catch { return []; }
+}
+
+async function loadAllNews() {
+  const btn = document.getElementById('news-refresh-btn');
+  btn.classList.add('spinning');
+  document.getElementById('news-grid').innerHTML = `
+    <div class="state-box" style="grid-column:1/-1">
+      <div class="spinner"></div><p>뉴스 수집 중…</p>
+    </div>`;
+
+  const results = await Promise.allSettled(RSS_FEEDS.map(fetchFeed));
+  allNews = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+
+  // deduplicate by title prefix
+  const seen = new Set();
+  allNews = allNews.filter(item => {
+    const key = item.title.slice(0, 20);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // sort by score (simulated)
+  allNews.sort((a, b) => b.score - a.score);
+
+  renderNews();
+  updateTicker();
+  btn.classList.remove('spinning');
+}
+
+function renderNews() {
+  const filtered = currentSource === 'all'
+    ? allNews
+    : allNews.filter(n => n.source === currentSource);
+
+  const top10 = filtered.slice(0, 10);
+  document.getElementById('news-count').textContent = top10.length;
+
+  if (top10.length === 0) {
+    document.getElementById('news-grid').innerHTML = `
+      <div class="state-box" style="grid-column:1/-1">
+        <div class="emoji">📭</div>
+        <p>불러온 뉴스가 없습니다.<br>CORS 제한으로 일부 피드가 차단될 수 있습니다.<br>
+        <a href="https://rss2json.com" target="_blank">rss2json.com</a>에서 무료 API 키를 발급받으면 더 안정적으로 사용할 수 있어요.</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('news-grid').innerHTML = top10.map((item, i) => {
+    const rank = i + 1;
+    const rankClass = rank <= 3 ? `rank-${rank}` : '';
+    const timeStr = item.pubDate ? new Date(item.pubDate).toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+    return `
+    <div class="news-card ${rankClass}">
+      <div class="card-header">
+        <span class="card-rank">${String(rank).padStart(2,'0')}</span>
+        <div class="card-source-time">
+          <span class="card-source">${item.source}</span>
+          <span>${timeStr}</span>
+        </div>
+      </div>
+      <div class="card-title"><a href="${item.link}" target="_blank" rel="noopener">${item.title}</a></div>
+      ${item.snippet ? `<div class="card-snippet">${item.snippet}</div>` : ''}
+      <div class="card-tags">
+        <span class="tag topic">${item.topic}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateTicker() {
+  const items = allNews.slice(0, 15).map(n => `📰 ${n.source} · ${n.title}`);
+  document.getElementById('ticker').innerHTML = items.map(t => `<span>${t}</span>`).join('');
+}
+
+// source filter
+document.getElementById('source-filters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  document.querySelectorAll('#source-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentSource = btn.dataset.source;
+  renderNews();
+});
+
+/* ────────────────────────────────────────────────
+   GITHUB CONFIG
+──────────────────────────────────────────────── */
+function saveConfig() {
+  const owner = document.getElementById('gh-owner').value.trim();
+  const repo  = document.getElementById('gh-repo').value.trim();
+  if (!owner || !repo) return alert('username과 repo를 모두 입력하세요.');
+  const cfg = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+  cfg.invest = { owner, repo };
+  localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+  // sync blog fields too if empty
+  if (!document.getElementById('gh-owner-b').value) document.getElementById('gh-owner-b').value = owner;
+  if (!document.getElementById('gh-repo-b').value)  document.getElementById('gh-repo-b').value  = repo;
+  loadInsights('invest', owner, repo);
+}
+
+function saveConfigBlog() {
+  const owner = document.getElementById('gh-owner-b').value.trim();
+  const repo  = document.getElementById('gh-repo-b').value.trim();
+  if (!owner || !repo) return alert('username과 repo를 모두 입력하세요.');
+  const cfg = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+  cfg.blog = { owner, repo };
+  localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+  loadInsights('blog', owner, repo);
+}
+
+function autoLoadFromStorage(type) {
+  const cfg = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+  const c = cfg[type === 'invest' ? 'invest' : 'blog'];
+  if (!c) return;
+  if (type === 'invest') {
+    document.getElementById('gh-owner').value = c.owner;
+    document.getElementById('gh-repo').value  = c.repo;
+  } else {
+    document.getElementById('gh-owner-b').value = c.owner;
+    document.getElementById('gh-repo-b').value  = c.repo;
+  }
+  loadInsights(type, c.owner, c.repo);
+}
+
+/* ────────────────────────────────────────────────
+   GITHUB ISSUES LOADER
+──────────────────────────────────────────────── */
+async function loadInsights(type, owner, repo) {
+  const label = type === 'invest' ? 'investment' : 'blog';
+  const gridId = type === 'invest' ? 'invest-grid' : 'blog-grid';
+  const countId = type === 'invest' ? 'invest-count' : 'blog-count';
+
+  document.getElementById(gridId).innerHTML = `
+    <div class="state-box" style="grid-column:1/-1">
+      <div class="spinner"></div><p>GitHub Issues 불러오는 중…</p>
+    </div>`;
+
+  try {
+    // fetch all labels to render richer cards
+    const url = `https://api.github.com/repos/${owner}/${repo}/issues?labels=${label}&state=open&per_page=50&sort=updated`;
+    const res = await fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || res.status);
+    }
+    const issues = await res.json();
+    document.getElementById(countId).textContent = issues.length;
+
+    if (type === 'invest') {
+      renderInvestStats(issues);
+      document.getElementById('invest-setup').style.display = 'none';
+    } else {
+      document.getElementById('blog-setup').style.display = 'none';
+    }
+
+    if (issues.length === 0) {
+      document.getElementById(gridId).innerHTML = `
+        <div class="state-box" style="grid-column:1/-1">
+          <div class="emoji">🗂️</div>
+          <p>아직 인사이트가 없습니다.<br>"+ 새 인사이트" 버튼을 눌러 추가하거나<br>GitHub에서 직접 Issue를 열어보세요.</p>
+        </div>`;
+      return;
+    }
+
+    document.getElementById(gridId).innerHTML = issues.map((issue, i) =>
+      renderInsightCard(issue, type, i + 1)
+    ).join('');
+
+  } catch (e) {
+    document.getElementById(gridId).innerHTML = `
+      <div class="state-box" style="grid-column:1/-1">
+        <div class="emoji">⚠️</div>
+        <p>오류: ${e.message}<br>
+        repo가 Public인지, owner/repo명이 정확한지 확인하세요.<br>
+        GitHub Issues에 <code>${label}</code> 라벨이 존재해야 합니다.</p>
+      </div>`;
+  }
+}
+
+function renderInsightCard(issue, type, num) {
+  const labels = issue.labels.map(l => `<span class="label-chip ${l.name}">${l.name}</span>`).join('');
+  const date = new Date(issue.updated_at).toLocaleDateString('ko-KR', {month:'2-digit',day:'2-digit'});
+  const body = (issue.body || '').replace(/<!--[\s\S]*?-->/g, '').trim().slice(0, 300);
+  const cardClass = type === 'invest' ? 'investment' : 'blog';
+  return `
+  <div class="insight-card ${cardClass}">
+    <div class="insight-header">
+      <div class="insight-title">
+        <a href="${issue.html_url}" target="_blank" rel="noopener">${issue.title}</a>
+      </div>
+      <span class="insight-num">#${issue.number}</span>
+    </div>
+    ${body ? `<div class="insight-body">${body}</div>` : ''}
+    <div class="insight-footer">
+      ${labels}
+      <span class="insight-date">${date}</span>
+    </div>
+  </div>`;
+}
+
+function renderInvestStats(issues) {
+  const el = document.getElementById('invest-stats');
+  el.style.display = 'flex';
+  document.getElementById('stat-total').textContent = issues.length;
+  document.getElementById('stat-watch').textContent = issues.filter(i => i.labels.some(l => l.name === 'watch')).length;
+  document.getElementById('stat-idea').textContent  = issues.filter(i => i.labels.some(l => l.name === 'idea')).length;
+  const latest = issues[0];
+  document.getElementById('stat-latest').textContent = latest
+    ? new Date(latest.updated_at).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})
+    : '–';
+}
+
+/* ────────────────────────────────────────────────
+   MODAL — GitHub Issue 생성 안내
+──────────────────────────────────────────────── */
+function openModal(type) {
+  currentModalType = type;
+  document.getElementById('modal-title').textContent = type === 'investment' ? '새 투자 인사이트' : '새 블로그 아이디어';
+  document.getElementById('modal-input-label').value = type === 'investment' ? 'investment' : 'blog';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+async function submitInsight() {
+  const title  = document.getElementById('modal-input-title').value.trim();
+  const body   = document.getElementById('modal-input-body').value.trim();
+  const label  = document.getElementById('modal-input-label').value;
+  const tags   = document.getElementById('modal-input-tags').value.trim();
+
+  if (!title) return alert('제목을 입력하세요.');
+
+  // Build GitHub new issue URL (no token needed — opens in browser)
+  const cfg = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+  const c = cfg[currentModalType === 'investment' ? 'invest' : 'blog'];
+
+  const fullBody = body + (tags ? `\n\n**태그:** ${tags}` : '');
+
+  if (c) {
+    const ghUrl = `https://github.com/${c.owner}/${c.repo}/issues/new?`
+      + `title=${encodeURIComponent(title)}`
+      + `&body=${encodeURIComponent(fullBody)}`
+      + `&labels=${encodeURIComponent(label)}`;
+    window.open(ghUrl, '_blank');
+    closeModal();
+    // clear form
+    ['modal-input-title','modal-input-body','modal-input-tags'].forEach(id => document.getElementById(id).value = '');
+  } else {
+    alert('먼저 GitHub 정보를 저장하세요 (상단 입력창).');
+  }
+}
+
+/* ────────────────────────────────────────────────
+   INIT
+──────────────────────────────────────────────── */
+loadAllNews();
+
+// restore invest config fields
+(function restoreFields() {
+  const cfg = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+  if (cfg.invest) {
+    document.getElementById('gh-owner').value = cfg.invest.owner;
+    document.getElementById('gh-repo').value  = cfg.invest.repo;
+  }
+  if (cfg.blog) {
+    document.getElementById('gh-owner-b').value = cfg.blog.owner;
+    document.getElementById('gh-repo-b').value  = cfg.blog.repo;
+  }
+})();
+</script>
+</body>
+</html>
