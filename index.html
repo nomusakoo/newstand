@@ -484,20 +484,12 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 <section class="tab-panel active" id="tab-news">
 
   <div class="toolbar">
-    <!-- 뉴스 모드 토글 -->
-    <div class="filter-row" id="mode-filters">
-      <button class="filter-btn active" data-mode="ranking" onclick="setFeedMode('ranking')">🔥 많이 본 뉴스</button>
-      <button class="filter-btn" data-mode="latest" onclick="setFeedMode('latest')">📡 최신순</button>
-    </div>
-    <div class="filter-divider"></div>
     <!-- 발행사 필터 -->
     <div class="filter-row" id="source-filters">
       <button class="filter-btn active" data-source="all">전체</button>
-      <button class="filter-btn" id="sf-naver" data-source="다음뉴스">다음뉴스</button>
-      <button class="filter-btn" id="sf-yna" data-source="연합뉴스">연합뉴스</button>
+      <button class="filter-btn" data-source="연합뉴스">연합뉴스</button>
       <button class="filter-btn" data-source="한국경제">한국경제</button>
       <button class="filter-btn" data-source="매일경제">매일경제</button>
-      <button class="filter-btn" data-source="조선비즈">조선비즈</button>
     </div>
     <!-- 키워드 필터 -->
     <div class="filter-divider"></div>
@@ -526,7 +518,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   </div>
 
   <div class="section-hd">
-    <h2 id="news-section-title">🔥 많이 본 뉴스</h2>
+    <h2 id="news-section-title">📰 최신뉴스</h2>
     <span class="count" id="news-count">0</span>
     <span class="last-updated" id="news-updated"></span>
   </div>
@@ -674,31 +666,16 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 ════════════════════════════════════════════════════════ -->
 <script>
 /* ── RSS FEEDS ─────────────────────────────────────────── */
-// 🔥 많이 본 뉴스: 다음 카테고리별 많이 본 기사 RSS (현재 운영 중)
-const RSS_FEEDS_RANKING = [
-  {name:'다음뉴스', url:'https://rss.daumcdn.com/rss/popular/society',    topic:'많이본·사회'},
-  {name:'다음뉴스', url:'https://rss.daumcdn.com/rss/popular/economic',   topic:'많이본·경제'},
-  {name:'다음뉴스', url:'https://rss.daumcdn.com/rss/popular/political',  topic:'많이본·정치'},
-  {name:'다음뉴스', url:'https://rss.daumcdn.com/rss/popular/culture',    topic:'많이본·문화'},
+const RSS_FEEDS = [
+  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/economy.xml',    topic:'경제'},
+  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/politics.xml',   topic:'정치'},
+  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/society.xml',    topic:'사회'},
+  {name:'한국경제', url:'https://www.hankyung.com/feed/economy',     topic:'경제'},
+  {name:'한국경제', url:'https://www.hankyung.com/feed/finance',     topic:'금융'},
+  {name:'한국경제', url:'https://www.hankyung.com/feed/realestate',  topic:'부동산'},
+  {name:'매일경제', url:'https://www.mk.co.kr/rss/30100041/',        topic:'경제'},
+  {name:'매일경제', url:'https://www.mk.co.kr/rss/50200011/',        topic:'주식'},
 ];
-
-// 📡 최신순 피드
-const RSS_FEEDS_LATEST = [
-  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/economy.xml',           topic:'경제'},
-  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/politics.xml',          topic:'정치'},
-  {name:'연합뉴스', url:'https://www.yna.co.kr/rss/society.xml',           topic:'사회'},
-  {name:'한국경제', url:'https://www.hankyung.com/feed/economy',            topic:'경제'},
-  {name:'한국경제', url:'https://www.hankyung.com/feed/finance',            topic:'금융'},
-  {name:'한국경제', url:'https://www.hankyung.com/feed/realestate',         topic:'부동산'},
-  {name:'매일경제', url:'https://www.mk.co.kr/rss/30100041/',               topic:'경제'},
-  {name:'매일경제', url:'https://www.mk.co.kr/rss/50200011/',               topic:'주식'},
-  {name:'조선비즈', url:'https://biz.chosun.com/site/data/rss/rss.xml',    topic:'경제'},
-  {name:'조선비즈', url:'https://biz.chosun.com/site/data/rss/market.xml', topic:'증권'},
-];
-
-// 현재 모드: 'ranking' | 'latest'
-let feedMode = localStorage.getItem('ns_feed_mode') || 'ranking';
-const RSS_FEEDS = () => feedMode === 'ranking' ? RSS_FEEDS_RANKING : RSS_FEEDS_LATEST;
 
 /* 키워드 → 관련 동의어/확장어 매핑 */
 const KEYWORD_MAP = {
@@ -847,9 +824,9 @@ async function fetchFeed(feed) {
   return [];
 }
 
-/* 모드별 메모리 캐시 — 탭 전환 시 즉시 표시용 */
-const newsCache = { ranking: null, latest: null };
-const newsCacheTime = { ranking: 0, latest: 0 };
+/* 메모리 캐시 */
+let newsCache    = null;
+let newsCacheTime = 0;
 
 function dedup(raw) {
   const seen = new Set();
@@ -869,48 +846,41 @@ function sortNews(raw) {
 }
 
 async function loadAllNews(forceRefresh = false) {
-  const btn  = document.getElementById('news-refresh-btn');
-  const mode = feedMode;
+  const btn = document.getElementById('news-refresh-btn');
 
-  /* ① 메모리 캐시 즉시 표시 (네트워크 요청 전) */
-  if (newsCache[mode] && !forceRefresh) {
-    allNews = newsCache[mode];
+  /* 캐시 즉시 표시 */
+  if (newsCache && !forceRefresh) {
+    allNews = newsCache;
     renderNews();
     updateTicker();
-    const age = Math.round((Date.now() - newsCacheTime[mode]) / 1000);
+    const age = Math.round((Date.now() - newsCacheTime) / 1000);
     const el = document.getElementById('news-updated');
     if (el) el.textContent = `캐시 (${age < 60 ? age + '초' : Math.round(age/60) + '분'} 전)`;
-
-    /* 25분 이상 됐으면 백그라운드에서 조용히 갱신 */
-    if (Date.now() - newsCacheTime[mode] > FEED_CACHE_TTL) {
-      _fetchAndUpdate(mode, false); // 스피너 없이
+    if (Date.now() - newsCacheTime > FEED_CACHE_TTL) {
+      _fetchAndUpdate();
     }
     scheduleAutoRefresh();
     return;
   }
 
-  /* ② 캐시 없거나 강제 새로고침 — 로딩 표시 후 fetch */
   btn.classList.add('spinning');
-  if (!newsCache[mode]) {
+  if (!newsCache) {
     document.getElementById('news-grid').innerHTML =
       `<div class="state-box" style="grid-column:1/-1"><div class="spinner"></div><p>뉴스 수집 중…</p></div>`;
   }
-  await _fetchAndUpdate(mode, true);
+  await _fetchAndUpdate();
   btn.classList.remove('spinning');
   scheduleAutoRefresh();
 }
 
-async function _fetchAndUpdate(mode, showSpinner) {
-  const results = await Promise.allSettled(RSS_FEEDS().map(fetchFeed));
-  /* 탭 전환 중에 모드가 바뀌었으면 버림 */
-  if (feedMode !== mode) return;
-
+async function _fetchAndUpdate() {
+  const results = await Promise.allSettled(RSS_FEEDS.map(fetchFeed));
   let raw = dedup(results.flatMap(r => r.status === 'fulfilled' ? r.value : []));
   raw = sortNews(raw);
 
-  newsCache[mode]    = raw;
-  newsCacheTime[mode] = Date.now();
-  allNews = raw;
+  newsCache     = raw;
+  newsCacheTime = Date.now();
+  allNews       = raw;
 
   renderNews();
   updateTicker();
@@ -1269,53 +1239,10 @@ function clearSettings() {
   updateWorkerBtn(false);
 }
 
-/* ── 피드 모드 전환 ───────────────────────────────────────── */
-function setFeedMode(mode) {
-  if (feedMode === mode) return; // 같은 탭 재클릭 무시
-  feedMode = mode;
-  localStorage.setItem('ns_feed_mode', mode);
-
-  document.querySelectorAll('#mode-filters .filter-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.mode === mode);
-  });
-  const sf = document.getElementById('source-filters');
-  sf.style.display = mode === 'ranking' ? 'none' : 'flex';
-  document.getElementById('news-section-title').textContent =
-    mode === 'ranking' ? '🔥 많이 본 뉴스' : '📰 최신뉴스';
-  currentSource = 'all';
-  document.querySelectorAll('#source-filters .filter-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('#source-filters .filter-btn').classList.add('active');
-
-  /* 캐시 있으면 즉시 렌더, 없으면 fetch */
-  if (newsCache[mode]) {
-    allNews = newsCache[mode];
-    renderNews();
-    updateTicker();
-    const age = Math.round((Date.now() - newsCacheTime[mode]) / 1000);
-    const el = document.getElementById('news-updated');
-    if (el) el.textContent = `캐시 (${age < 60 ? age + '초' : Math.round(age/60) + '분'} 전)`;
-    if (Date.now() - newsCacheTime[mode] > FEED_CACHE_TTL) {
-      _fetchAndUpdate(mode, false);
-    }
-  } else {
-    loadAllNews();
-  }
-}
-
 /* ── INIT ────────────────────────────────────────────────── */
-(function restoreWorkerUrl() {
+(function restoreSettings() {
   const saved = localStorage.getItem('ns_worker_url');
   updateWorkerBtn(!!saved);
-  // 피드 모드 복원
-  const savedMode = localStorage.getItem('ns_feed_mode') || 'ranking';
-  feedMode = savedMode;
-  document.querySelectorAll('#mode-filters .filter-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.mode === savedMode);
-  });
-  const sf = document.getElementById('source-filters');
-  sf.style.display = savedMode === 'ranking' ? 'none' : 'flex';
-  document.getElementById('news-section-title').textContent =
-    savedMode === 'ranking' ? '🔥 많이 본 뉴스' : '📰 최신뉴스';
 })();
 // restore config fields — 설정 모달로 통합됨, 탭 전환 시 autoLoadFromStorage 호출
 
