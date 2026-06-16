@@ -1848,12 +1848,25 @@ async function fetchYahooV8(symbol) {
   const res  = await fetchFinanceWithTimeout(url, {}, 7000);
   if (!res.ok) throw new Error(`Yahoo ${res.status}`);
   const data = await res.json();
-  const meta = data?.chart?.result?.[0]?.meta;
+  const result = data?.chart?.result?.[0];
+  const meta   = result?.meta;
   if (!meta) throw new Error('no meta');
-  const price = meta.regularMarketPrice ?? meta.previousClose;
-  // regularMarketChangePercent 직접 사용 (Yahoo가 직접 계산한 값)
-  const chg   = meta.regularMarketChangePercent ?? 0;
-  return {val: price, chg, closed: meta.marketState !== 'REGULAR'};
+
+  const price   = meta.regularMarketPrice ?? meta.previousClose;
+  const closed  = meta.marketState !== 'REGULAR';
+  let chg       = meta.regularMarketChangePercent ?? 0;
+
+  // 장외/주말 시 chg가 0이면 OHLC 데이터로 직접 계산
+  if (Math.abs(chg) < 0.0001) {
+    const closes = result?.indicators?.quote?.[0]?.close?.filter(v => v != null);
+    if (closes && closes.length >= 2) {
+      const prev = closes[closes.length - 2];
+      const last = closes[closes.length - 1];
+      if (prev) chg = ((last - prev) / prev) * 100;
+    }
+  }
+
+  return {val: price, chg, closed};
 }
 
 async function fetchFinanceData() {
