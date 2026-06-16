@@ -513,14 +513,14 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   body{padding-bottom:0;}
 }
 /* ─── 부동산 실거래가 ────────────────────────────────────── */
-.re-layout{display:grid;grid-template-columns:400px 1fr;gap:20px;min-height:600px;}
-@media(max-width:900px){.re-layout{grid-template-columns:1fr;}}
-.re-map-wrap{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;}
+.re-layout{display:grid;grid-template-columns:480px 1fr;gap:20px;min-height:680px;}
+@media(max-width:1000px){.re-layout{grid-template-columns:1fr;}}
+.re-map-wrap{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;min-height:600px;}
 .re-map-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
 .re-title{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;}
 .re-subtitle{font-size:12px;color:var(--accent);font-weight:600;}
 .re-map-container{flex:1;display:flex;align-items:center;justify-content:center;}
-.re-map-container svg{width:100%;height:auto;}
+.re-map-container svg{width:100%;height:auto;min-height:480px;}
 .gu-path{fill:var(--tag-bg);stroke:var(--surface);stroke-width:1.2;transition:fill .25s,filter .25s;cursor:pointer;}
 .gu-path:hover{fill:rgba(79,138,255,.28);filter:drop-shadow(0 0 5px rgba(79,138,255,.45));}
 .gu-path.gu-active{fill:rgba(79,138,255,.42);stroke:var(--accent);stroke-width:2;}
@@ -2334,7 +2334,7 @@ function initSeoulMap() {
   const container = document.getElementById('re-map-container');
   if (!container || container.querySelector('svg')) return;
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('viewBox','20 15 460 390');
+  svg.setAttribute('viewBox','30 20 440 375');
   const river = document.createElementNS('http://www.w3.org/2000/svg','path');
   river.setAttribute('d','M140,282 Q200,275 260,278 Q320,282 380,278 Q440,272 500,275');
   river.setAttribute('stroke','rgba(79,138,255,.2)');
