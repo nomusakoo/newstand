@@ -515,16 +515,66 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 /* ─── 부동산 실거래가 ────────────────────────────────────── */
 .re-layout{display:grid;grid-template-columns:480px 1fr;gap:20px;min-height:680px;}
 @media(max-width:1000px){.re-layout{grid-template-columns:1fr;}}
-.re-map-wrap{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;min-height:600px;}
+.re-map-wrap{
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:20px;display:flex;flex-direction:column;gap:12px;min-height:600px;
+}
 .re-map-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
-.re-title{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;}
+.re-title{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;}
 .re-subtitle{font-size:12px;color:var(--accent);font-weight:600;}
-.re-map-container{flex:1;display:flex;align-items:center;justify-content:center;}
-.re-map-container svg{width:100%;height:auto;min-height:480px;}
-.gu-path{fill:var(--tag-bg);stroke:var(--surface);stroke-width:1.2;transition:fill .25s,filter .25s;cursor:pointer;}
-.gu-path:hover{fill:rgba(79,138,255,.28);filter:drop-shadow(0 0 5px rgba(79,138,255,.45));}
-.gu-path.gu-active{fill:rgba(79,138,255,.42);stroke:var(--accent);stroke-width:2;}
-.gu-label{font-size:8.5px;fill:var(--dim);pointer-events:none;text-anchor:middle;dominant-baseline:central;transition:fill .2s;}
+.re-map-container{flex:1;display:flex;align-items:center;justify-content:center;position:relative;}
+.re-map-container svg{width:100%;height:auto;min-height:500px;}
+
+/* 자치구 path */
+.gu-path{
+  fill:var(--tag-bg);
+  stroke:var(--surface);
+  stroke-width:1.5;
+  stroke-linejoin:round;
+  transition:fill .2s, stroke .2s, stroke-width .15s;
+  cursor:pointer;
+}
+.gu-path:hover{
+  fill:rgba(79,138,255,.22);
+  stroke:rgba(79,138,255,.6);
+  stroke-width:2;
+}
+.gu-path.gu-active{
+  fill:rgba(79,138,255,.38);
+  stroke:var(--accent);
+  stroke-width:2.5;
+}
+.gu-label{
+  font-size:9px;
+  fill:var(--dim);
+  pointer-events:none;
+  text-anchor:middle;
+  dominant-baseline:central;
+  font-family:var(--font-body);
+  font-weight:600;
+  transition:fill .2s, font-size .15s;
+  letter-spacing:-.02em;
+}
+.gu-path:hover ~ .gu-label,
+.gu-path.gu-active ~ .gu-label{fill:var(--accent);}
+
+/* 지도 툴팁 */
+.re-map-tooltip{
+  position:absolute;
+  background:var(--panel);
+  border:1px solid var(--accent);
+  border-radius:6px;
+  padding:4px 10px;
+  font-size:12px;
+  font-weight:600;
+  color:var(--bright);
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .15s;
+  white-space:nowrap;
+  z-index:10;
+  box-shadow:0 2px 12px rgba(0,0,0,.15);
+}
 .re-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;overflow-y:auto;max-height:700px;display:flex;flex-direction:column;gap:12px;}
 .re-panel-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--border);}
 .re-select{background:var(--ink);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:4px 8px;outline:none;cursor:pointer;}
@@ -740,7 +790,9 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
         <h2 class="re-title">🗺️ 서울시 자치구</h2>
         <span class="re-subtitle" id="re-selected-gu">자치구를 클릭하세요</span>
       </div>
-      <div class="re-map-container" id="re-map-container"></div>
+      <div class="re-map-container" id="re-map-container">
+        <div class="re-map-tooltip" id="re-map-tooltip"></div>
+      </div>
     </div>
     <!-- 우측: 실거래가 목록 / 상세 -->
     <div class="re-panel">
@@ -2305,7 +2357,7 @@ const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
 let reSelectedGu  = null;
 let reCurrentApts = [];
 let reCurrentApt  = null;
-let rePeriod      = '1y';
+let rePeriod      = '6m';
 let rePyeong      = 'all';
 let reCurrentDong = 'all';
 let reAllTrades   = [];
@@ -2344,36 +2396,96 @@ const GU_DATA = [
 function initSeoulMap() {
   const container = document.getElementById('re-map-container');
   if (!container || container.querySelector('svg')) return;
+
+  const tooltip = document.getElementById('re-map-tooltip');
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.setAttribute('viewBox','25 15 455 385');
+  svg.style.overflow = 'visible';
+
+  // 배경 — 은은한 점선 격자
+  const bgRect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  bgRect.setAttribute('x','25'); bgRect.setAttribute('y','15');
+  bgRect.setAttribute('width','455'); bgRect.setAttribute('height','385');
+  bgRect.setAttribute('fill','none');
+  svg.appendChild(bgRect);
+
+  // 한강
+  const riverDefs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+  grad.setAttribute('id','riverGrad'); grad.setAttribute('x1','0'); grad.setAttribute('y1','0'); grad.setAttribute('x2','1'); grad.setAttribute('y2','0');
+  const s1 = document.createElementNS('http://www.w3.org/2000/svg','stop');
+  s1.setAttribute('offset','0%'); s1.setAttribute('stop-color','rgba(79,138,255,.08)');
+  const s2 = document.createElementNS('http://www.w3.org/2000/svg','stop');
+  s2.setAttribute('offset','50%'); s2.setAttribute('stop-color','rgba(79,138,255,.18)');
+  const s3 = document.createElementNS('http://www.w3.org/2000/svg','stop');
+  s3.setAttribute('offset','100%'); s3.setAttribute('stop-color','rgba(79,138,255,.08)');
+  grad.appendChild(s1); grad.appendChild(s2); grad.appendChild(s3);
+  riverDefs.appendChild(grad);
+  svg.appendChild(riverDefs);
+
+  // 한강 본류
   const river = document.createElementNS('http://www.w3.org/2000/svg','path');
-  river.setAttribute('d','M140,282 Q200,275 260,278 Q320,282 380,278 Q440,272 500,275');
-  river.setAttribute('stroke','rgba(79,138,255,.2)');
-  river.setAttribute('stroke-width','18');
+  river.setAttribute('d','M40,278 C80,272 140,275 200,275 C260,275 310,280 370,276 C430,272 470,274 500,272');
+  river.setAttribute('stroke','url(#riverGrad)');
+  river.setAttribute('stroke-width','14');
   river.setAttribute('fill','none');
   river.setAttribute('stroke-linecap','round');
+  river.setAttribute('opacity','.8');
   svg.appendChild(river);
+
   GU_DATA.forEach((gu, i) => {
-    const g    = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+
     const path = document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d', gu.path);
     path.setAttribute('class','gu-path');
+    path.setAttribute('data-code', gu.code);
+    path.setAttribute('data-name', gu.name);
+
+    // 입장 애니메이션
     path.style.opacity = '0';
-    path.style.transform = `scale(0.95)`;
+    path.style.transform = `scale(0.96)`;
     path.style.transformOrigin = `${gu.cx}px ${gu.cy}px`;
     setTimeout(() => {
-      path.style.transition = 'opacity .4s ease, transform .4s ease, fill .25s, filter .25s';
+      path.style.transition = 'opacity .5s ease, transform .5s ease, fill .2s, stroke .2s, stroke-width .15s';
       path.style.opacity = '1';
       path.style.transform = 'scale(1)';
-    }, i * 30);
-    path.addEventListener('click', () => selectGu(gu.code, gu.name, path));
+    }, i * 25 + 100);
+
+    // 클릭
+    path.addEventListener('click', (e) => {
+      selectGu(gu.code, gu.name, path);
+    });
+
+    // 툴팁
+    path.addEventListener('mouseenter', (e) => {
+      if (tooltip) {
+        tooltip.textContent = gu.name;
+        tooltip.style.opacity = '1';
+      }
+    });
+    path.addEventListener('mousemove', (e) => {
+      if (tooltip) {
+        const rect = container.getBoundingClientRect();
+        tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+        tooltip.style.top  = (e.clientY - rect.top  - 30) + 'px';
+      }
+    });
+    path.addEventListener('mouseleave', () => {
+      if (tooltip) tooltip.style.opacity = '0';
+    });
+
     const text = document.createElementNS('http://www.w3.org/2000/svg','text');
-    text.setAttribute('x', gu.cx); text.setAttribute('y', gu.cy);
+    text.setAttribute('x', gu.cx);
+    text.setAttribute('y', gu.cy);
     text.setAttribute('class','gu-label');
     text.textContent = gu.name.replace('구','');
-    g.appendChild(path); g.appendChild(text);
+
+    g.appendChild(path);
+    g.appendChild(text);
     svg.appendChild(g);
   });
+
   container.appendChild(svg);
 }
 
@@ -2392,6 +2504,17 @@ async function loadAptList(code, guName, year, month) {
   document.getElementById('re-panel-title').textContent = `${guName} · ${year}년 ${parseInt(month)}월 거래`;
   panel.innerHTML = '<div class="re-loading"><div class="spinner"></div>데이터 조회 중…</div>';
   document.getElementById('re-dong-tabs').innerHTML = '';
+
+  const cacheKey = `re_${code}_${year}${month}`;
+  const cached   = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+  if (cached && (Date.now() - cached.ts) < 24*60*60*1000) {
+    reAllTrades = cached.data;
+    reCurrentDong = 'all';
+    buildDongTabs();
+    groupAndRender();
+    return;
+  }
+
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
   const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}`;
   const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
@@ -2411,6 +2534,8 @@ async function loadAptList(code, guName, year, month) {
       floor:    g(item,'floor'),
       dealDate: `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
     }));
+    // 24시간 캐싱
+    try { localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), data:reAllTrades})); } catch(e) {}
     reCurrentDong = 'all';
     buildDongTabs();
     groupAndRender();
@@ -2539,17 +2664,27 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
   for (let i=0; i<yyyymmList.length; i+=batchSize) {
     const batch = yyyymmList.slice(i, i+batchSize);
     const results = await Promise.allSettled(batch.map(async ym => {
+      const trendCacheKey = `re_trend_${guCode}_${ym}`;
+      const trendCached   = JSON.parse(localStorage.getItem(trendCacheKey) || 'null');
+      if (trendCached && (Date.now() - trendCached.ts) < 24*60*60*1000) {
+        return trendCached.data.filter(t => t.aptNm === aptName).map(t => ({
+          amount: t.amount, area: t.area, dealDate: t.dealDate,
+        }));
+      }
       const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${guCode}&DEAL_YMD=${ym}`;
       const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
       const res  = await fetch(url);
       const xml  = new DOMParser().parseFromString(await res.text(), 'text/xml');
       const items = [...xml.querySelectorAll('item')];
       const g = (el,tag) => el.querySelector(tag)?.textContent?.trim()||'';
-      return items.filter(item=>g(item,'aptNm')===aptName).map(item=>({
+      const allItems = items.map(item=>({
+        aptNm:    g(item,'aptNm'),
         amount:   parseInt(g(item,'dealAmount').replace(/,/g,'')||'0'),
         area:     parseFloat(g(item,'excluUseAr')||'0'),
         dealDate: `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
       }));
+      try { localStorage.setItem(trendCacheKey, JSON.stringify({ts:Date.now(), data:allItems})); } catch(e) {}
+      return allItems.filter(t=>t.aptNm===aptName).map(t=>({amount:t.amount,area:t.area,dealDate:t.dealDate}));
     }));
     results.forEach(r=>{ if(r.status==='fulfilled') allTrades.push(...r.value); });
   }
