@@ -2375,13 +2375,14 @@ async function loadAptList(code, guName, year, month) {
   const yyyymm = `${year}${month}`;
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
   // 국토교통부 아파트매매 실거래가 API (CORS 허용, HTTPS)
-  const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade`
-    + `?serviceKey=${encodeURIComponent(RE_API_KEY)}`
+  const rawUrl = `https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade`
+    + `?serviceKey=${RE_API_KEY}`
     + `&pageNo=1&numOfRows=1000`
     + `&LAWD_CD=${code}`
     + `&DEAL_YMD=${yyyymm}`;
-  // 국토교통부 API — Worker 경유 (Referer 헤더 처리)
-  const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
+  const url = workerUrl
+    ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}`
+    : rawUrl;
 
   try {
     const res  = await fetch(url);
