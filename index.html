@@ -2376,7 +2376,7 @@ async function loadAptList(code, guName, year, month) {
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
   // 국토교통부 아파트매매 실거래가 API (CORS 허용, HTTPS)
   const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade`
-    + `?serviceKey=${RE_API_KEY}`
+    + `?serviceKey=${encodeURIComponent(RE_API_KEY)}`
     + `&pageNo=1&numOfRows=1000`
     + `&LAWD_CD=${code}`
     + `&DEAL_YMD=${yyyymm}`;
