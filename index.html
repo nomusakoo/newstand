@@ -740,34 +740,31 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
         <h2 class="re-title">🗺️ 서울시 자치구</h2>
         <span class="re-subtitle" id="re-selected-gu">자치구를 클릭하세요</span>
       </div>
-      <div class="re-map-container" id="re-map-container">
-        <!-- SVG 지도 JS로 삽입 -->
-      </div>
+      <div class="re-map-container" id="re-map-container"></div>
     </div>
     <!-- 우측: 실거래가 목록 / 상세 -->
     <div class="re-panel">
+      <!-- 목록 패널 -->
       <div id="re-list-panel">
         <div class="re-panel-header">
           <span id="re-panel-title" style="font-size:13px;color:var(--dim);">자치구를 선택하면 아파트 목록이 표시됩니다</span>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;" id="re-controls" style="display:none;">
-            <select id="re-year" class="re-select">
-              <option value="2026">2026년</option>
-              <option value="2025">2025년</option>
-              <option value="2024">2024년</option>
-              <option value="2023">2023년</option>
-            </select>
-            <select id="re-month" class="re-select">
-              <option value="06">6월</option>
-              <option value="05">5월</option>
-              <option value="04">4월</option>
-              <option value="03">3월</option>
-              <option value="02">2월</option>
-              <option value="01">1월</option>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;" id="re-controls">
+            <select id="re-year" class="re-select"></select>
+            <select id="re-month" class="re-select"></select>
+            <select id="re-sort" class="re-select">
+              <option value="price_desc">금액 높은순</option>
+              <option value="price_asc">금액 낮은순</option>
+              <option value="date_desc">최신순</option>
+              <option value="date_asc">과거순</option>
+              <option value="name_asc">이름순</option>
             </select>
           </div>
         </div>
+        <!-- 동별 탭 -->
+        <div id="re-dong-tabs" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;"></div>
         <div id="re-apt-list"></div>
       </div>
+      <!-- 상세 패널 -->
       <div id="re-detail-panel" style="display:none;">
         <button class="re-back-btn" onclick="closeReDetail()">← 목록으로</button>
         <div id="re-detail-content"></div>
@@ -2259,9 +2256,50 @@ function initApp() {
    부동산 실거래가
 ══════════════════════════════════════════════════════════ */
 const RE_API_KEY  = '88a33daa28380c66fdde8cd836e6d709fa23f9e9d6356362c0dacf8a639c503a';
-const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev';
+const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
 
-// 서울시 자치구 목록 + SVG path 좌표 (간략화된 SVG 좌표)
+/* ── 연/월 select 자동 생성 ──────────────────────────────── */
+(function initReDateSelects() {
+  const now  = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  const yearSel = document.getElementById('re-year');
+  for (let y = curY; y >= 2020; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = `${y}년`;
+    yearSel.appendChild(opt);
+  }
+  function updateMonths(year) {
+    const monthSel = document.getElementById('re-month');
+    monthSel.innerHTML = '';
+    const maxM = parseInt(year) === curY ? curM : 12;
+    for (let m = maxM; m >= 1; m--) {
+      const opt = document.createElement('option');
+      opt.value = String(m).padStart(2,'0');
+      opt.textContent = `${m}월`;
+      monthSel.appendChild(opt);
+    }
+  }
+  updateMonths(curY);
+  yearSel.addEventListener('change', () => {
+    updateMonths(yearSel.value);
+    if (reSelectedGu) loadAptList(reSelectedGu.code, reSelectedGu.name, yearSel.value, document.getElementById('re-month').value);
+  });
+  document.getElementById('re-month').addEventListener('change', () => {
+    if (reSelectedGu) loadAptList(reSelectedGu.code, reSelectedGu.name, document.getElementById('re-year').value, document.getElementById('re-month').value);
+  });
+  document.getElementById('re-sort').addEventListener('change', renderAptCards);
+})();
+
+let reSelectedGu  = null;
+let reCurrentApts = [];
+let reCurrentApt  = null;
+let rePeriod      = '1y';
+let rePyeong      = 'all';
+let reCurrentDong = 'all';
+let reAllTrades   = [];
+
+
 const GU_DATA = [
   {code:"11110",name:"종로구",cx:230.9,cy:159.3,path:"M223.8,113.2L228.3,117.8L231.0,117.3L232.2,125.9L237.7,136.6L236.9,146.6L238.7,154.4L232.9,157.2L233.3,161.5L237.5,165.9L242.1,167.5L246.0,166.3L252.4,170.5L256.5,175.5L258.3,181.9L263.8,179.6L267.2,184.4L271.7,185.1L271.9,193.5L269.1,193.5L264.8,196.0L247.0,197.5L239.7,198.3L229.4,196.8L224.8,196.8L221.2,198.1L219.0,201.1L206.8,184.0L212.5,179.2L209.7,176.3L211.3,169.3L210.1,158.3L207.3,157.9L206.0,155.5L206.8,149.9L203.8,145.6L203.2,144.4L204.4,140.0L203.8,134.7L204.1,131.0L205.2,127.4L209.7,122.4L212.4,118.3L221.4,116.0L223.8,113.2Z"},
   {code:"11140",name:"중구",cx:244.7,cy:211.6,path:"M271.9,193.5L272.1,202.2L275.0,202.4L272.2,207.5L271.4,211.8L268.4,212.3L265.8,217.8L261.0,224.2L259.1,224.8L258.1,230.2L256.9,230.4L254.6,227.3L252.6,222.8L245.7,225.9L238.7,220.3L231.9,217.7L228.8,215.7L218.1,216.8L215.0,220.3L214.4,215.2L215.7,213.7L214.2,210.5L216.1,209.9L221.7,206.3L219.0,201.1L224.8,196.8L239.7,198.3L247.0,197.5L264.8,196.0L269.1,193.5L271.9,193.5Z"},
@@ -2290,21 +2328,13 @@ const GU_DATA = [
   {code:"11740",name:"강동구",cx:391.2,cy:220.5,path:"M355.6,208.6L359.0,209.0L361.4,205.5L364.1,203.4L374.9,197.8L387.4,193.5L392.8,190.8L403.8,183.1L407.1,183.5L412.4,183.1L415.2,181.6L413.7,186.1L414.3,190.1L416.0,193.0L417.2,196.9L417.6,201.5L419.9,207.8L419.3,218.5L421.0,220.0L420.5,224.8L421.1,228.3L419.4,228.6L417.1,226.7L413.9,228.6L410.9,228.1L405.1,229.9L402.3,228.8L393.3,243.5L393.1,249.6L389.5,254.5L387.9,259.2L386.1,259.4L385.1,262.8L385.0,266.0L383.7,265.4L361.2,251.3L362.4,248.3L365.0,237.4L360.6,234.3L352.3,230.9L354.6,225.5L356.3,217.8L356.4,210.9L355.6,208.6Z"},
 ];
 
-let reSelectedGu   = null;
-let reCurrentApts  = [];
-let reCurrentApt   = null;
-let rePeriod       = '3m';
-let rePyeong       = 'all';
 
-/* 서울 SVG 지도 생성 */
+/* ── 서울 SVG 지도 ───────────────────────────────────────── */
 function initSeoulMap() {
   const container = document.getElementById('re-map-container');
   if (!container || container.querySelector('svg')) return;
-
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.setAttribute('viewBox','20 15 460 390');
-
-  // 강 (한강) 배경
   const river = document.createElementNS('http://www.w3.org/2000/svg','path');
   river.setAttribute('d','M140,282 Q200,275 260,278 Q320,282 380,278 Q440,272 500,275');
   river.setAttribute('stroke','rgba(79,138,255,.2)');
@@ -2312,345 +2342,260 @@ function initSeoulMap() {
   river.setAttribute('fill','none');
   river.setAttribute('stroke-linecap','round');
   svg.appendChild(river);
-
   GU_DATA.forEach((gu, i) => {
-    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-
+    const g    = document.createElementNS('http://www.w3.org/2000/svg','g');
     const path = document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d', gu.path);
     path.setAttribute('class','gu-path');
-    path.setAttribute('data-code', gu.code);
-    path.setAttribute('data-name', gu.name);
-
-    // 입장 애니메이션
     path.style.opacity = '0';
-    path.style.transform = 'scale(0.95)';
+    path.style.transform = `scale(0.95)`;
     path.style.transformOrigin = `${gu.cx}px ${gu.cy}px`;
     setTimeout(() => {
       path.style.transition = 'opacity .4s ease, transform .4s ease, fill .25s, filter .25s';
       path.style.opacity = '1';
       path.style.transform = 'scale(1)';
     }, i * 30);
-
     path.addEventListener('click', () => selectGu(gu.code, gu.name, path));
-
     const text = document.createElementNS('http://www.w3.org/2000/svg','text');
-    text.setAttribute('x', gu.cx);
-    text.setAttribute('y', gu.cy);
+    text.setAttribute('x', gu.cx); text.setAttribute('y', gu.cy);
     text.setAttribute('class','gu-label');
     text.textContent = gu.name.replace('구','');
-
-    g.appendChild(path);
-    g.appendChild(text);
+    g.appendChild(path); g.appendChild(text);
     svg.appendChild(g);
   });
-
   container.appendChild(svg);
 }
 
-/* 자치구 선택 */
 async function selectGu(code, name, pathEl) {
-  // 기존 선택 해제
   document.querySelectorAll('.gu-path').forEach(p => p.classList.remove('gu-active'));
   pathEl.classList.add('gu-active');
   reSelectedGu = {code, name};
-
   document.getElementById('re-selected-gu').textContent = name;
   document.getElementById('re-detail-panel').style.display = 'none';
-  document.getElementById('re-list-panel').style.display = 'block';
-  document.getElementById('re-controls').style.display = 'flex';
-
-  const year  = document.getElementById('re-year').value;
-  const month = document.getElementById('re-month').value;
-  await loadAptList(code, name, year, month);
+  document.getElementById('re-list-panel').style.display   = 'block';
+  await loadAptList(code, name, document.getElementById('re-year').value, document.getElementById('re-month').value);
 }
 
-/* 아파트 목록 조회 */
 async function loadAptList(code, guName, year, month) {
   const panel = document.getElementById('re-apt-list');
-  const title = document.getElementById('re-panel-title');
-  title.textContent = `${guName} · ${year}년 ${parseInt(month)}월 거래`;
+  document.getElementById('re-panel-title').textContent = `${guName} · ${year}년 ${parseInt(month)}월 거래`;
   panel.innerHTML = '<div class="re-loading"><div class="spinner"></div>데이터 조회 중…</div>';
-
-  const yyyymm = `${year}${month}`;
+  document.getElementById('re-dong-tabs').innerHTML = '';
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
-  // 국토교통부 아파트매매 실거래가 API (CORS 허용, HTTPS)
-  const rawUrl = `https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade`
-    + `?serviceKey=${RE_API_KEY}`
-    + `&pageNo=1&numOfRows=1000`
-    + `&LAWD_CD=${code}`
-    + `&DEAL_YMD=${yyyymm}`;
-  const url = workerUrl
-    ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}`
-    : rawUrl;
-
+  const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}`;
+  const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
   try {
     const res  = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-
-    // 국토교통부 API는 XML 응답
-    const parser = new DOMParser();
-    const xml    = parser.parseFromString(text, 'text/xml');
-
-    // 에러 체크
-    const errMsg = xml.querySelector('cmmMsgHeader errMsg, returnAuthMsg');
-    if (errMsg) throw new Error(errMsg.textContent);
-
+    const xml  = new DOMParser().parseFromString(await res.text(), 'text/xml');
     const items = [...xml.querySelectorAll('item')];
-    if (!items.length) {
-      // totalCount 확인
-      const total = xml.querySelector('totalCount')?.textContent || '0';
-      panel.innerHTML = `<div class="re-loading">해당 기간 거래 데이터가 없습니다.<br><small style="opacity:.6">(총 ${total}건)</small></div>`;
-      return;
-    }
-
+    if (!items.length) { panel.innerHTML = '<div class="re-loading">해당 기간 거래 데이터가 없습니다.</div>'; return; }
     const g = (el, tag) => el.querySelector(tag)?.textContent?.trim() || '';
-
-    // 아파트명으로 그룹핑
-    const aptMap = {};
-    items.forEach(item => {
-      const name  = g(item, 'aptNm');
-      if (!name) return;
-      if (!aptMap[name]) aptMap[name] = {
-        name,
-        trades: [],
-        dong:  g(item, 'umdNm'),
-        built: g(item, 'buildYear'),
-      };
-      aptMap[name].trades.push({
-        OBJ_AMT:    g(item, 'dealAmount').replace(/,/g,''),
-        ARCH_AREA:  g(item, 'excluUseAr'),
-        FLOOR:      g(item, 'floor'),
-        DEAL_YMD:   `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
-        BLDG_NM:    name,
-        BUILD_YEAR: g(item, 'buildYear'),
-        BEOPJUNG_DONG_NM: g(item, 'umdNm'),
-      });
-    });
-
-    reCurrentApts = Object.values(aptMap);
-    reCurrentApts.sort((a,b) => {
-      const pa = Math.max(...a.trades.map(t => parseInt(t.OBJ_AMT||'0')));
-      const pb = Math.max(...b.trades.map(t => parseInt(t.OBJ_AMT||'0')));
-      return pb - pa;
-    });
-
-    panel.innerHTML = reCurrentApts.map((apt, i) => {
-      const prices   = apt.trades.map(t => parseInt(t.OBJ_AMT||'0'));
-      const maxPrice = Math.max(...prices);
-      const minPrice = Math.min(...prices);
-      const avgPrice = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
-      return `
-      <div class="apt-card" onclick="openAptDetail(${i})">
-        <div class="apt-name">${apt.name}</div>
-        <div class="apt-meta">
-          <span>📍 ${apt.dong || guName}</span>
-          <span>🏗 ${apt.built || '?'}년 준공</span>
-          <span>📋 ${apt.trades.length}건 거래</span>
-        </div>
-        <div class="apt-price">
-          최고 ${fmtPrice(maxPrice)} · 평균 ${fmtPrice(avgPrice)} · 최저 ${fmtPrice(minPrice)}
-        </div>
-      </div>`;
-    }).join('');
-
+    reAllTrades = items.map(item => ({
+      aptNm:    g(item,'aptNm'),
+      dong:     g(item,'umdNm'),
+      built:    g(item,'buildYear'),
+      amount:   parseInt(g(item,'dealAmount').replace(/,/g,'')||'0'),
+      area:     parseFloat(g(item,'excluUseAr')||'0'),
+      floor:    g(item,'floor'),
+      dealDate: `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
+    }));
+    reCurrentDong = 'all';
+    buildDongTabs();
+    groupAndRender();
   } catch(e) {
     panel.innerHTML = `<div class="re-loading">⚠️ 오류: ${e.message}</div>`;
-    console.error('[부동산 API]', e);
   }
 }
 
-/* 가격 포맷 */
-function fmtPrice(won) {
-  if (!won || isNaN(won)) return '–';
-  const uk = Math.floor(won / 10000);
-  const cheon = Math.round((won % 10000) / 1000);
-  if (uk === 0) return `${(won/10000).toFixed(1)}억`;
-  return cheon > 0 ? `${uk}억 ${cheon}천` : `${uk}억`;
+function buildDongTabs() {
+  const dongs = ['all', ...new Set(reAllTrades.map(t=>t.dong).filter(Boolean).sort())];
+  document.getElementById('re-dong-tabs').innerHTML = dongs.map(d =>
+    `<button class="re-tab ${d===reCurrentDong?'active':''}" onclick="setReDong('${d}')">${d==='all'?'전체':d}</button>`
+  ).join('');
 }
 
-/* 아파트 상세 */
+function setReDong(dong) { reCurrentDong = dong; buildDongTabs(); groupAndRender(); }
+
+function groupAndRender() {
+  const filtered = reCurrentDong==='all' ? reAllTrades : reAllTrades.filter(t=>t.dong===reCurrentDong);
+  const aptMap = {};
+  filtered.forEach(t => {
+    if (!t.aptNm) return;
+    if (!aptMap[t.aptNm]) aptMap[t.aptNm] = {name:t.aptNm, dong:t.dong, built:t.built, trades:[]};
+    aptMap[t.aptNm].trades.push(t);
+  });
+  reCurrentApts = Object.values(aptMap);
+  renderAptCards();
+}
+
+function renderAptCards() {
+  const sort  = document.getElementById('re-sort').value;
+  const panel = document.getElementById('re-apt-list');
+  reCurrentApts.sort((a,b) => {
+    const pa=Math.max(...a.trades.map(t=>t.amount)), pb=Math.max(...b.trades.map(t=>t.amount));
+    const da=Math.max(...a.trades.map(t=>t.dealDate)), db=Math.max(...b.trades.map(t=>t.dealDate));
+    if (sort==='price_desc') return pb-pa;
+    if (sort==='price_asc')  return pa-pb;
+    if (sort==='date_desc')  return String(db).localeCompare(String(da));
+    if (sort==='date_asc')   return String(da).localeCompare(String(db));
+    if (sort==='name_asc')   return a.name.localeCompare(b.name,'ko');
+    return pb-pa;
+  });
+  if (!reCurrentApts.length) { panel.innerHTML='<div class="re-loading">데이터가 없습니다.</div>'; return; }
+  panel.innerHTML = reCurrentApts.map((apt,i) => {
+    const prices=apt.trades.map(t=>t.amount);
+    const maxP=Math.max(...prices), minP=Math.min(...prices), avgP=Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
+    return `<div class="apt-card" onclick="openAptDetail(${i})">
+      <div class="apt-name">${apt.name}</div>
+      <div class="apt-meta"><span>📍 ${apt.dong||''}</span><span>🏗 ${apt.built||'?'}년 준공</span><span>📋 ${apt.trades.length}건</span></div>
+      <div class="apt-price">최고 ${fmtPrice(maxP)} · 평균 ${fmtPrice(avgP)} · 최저 ${fmtPrice(minP)}</div>
+    </div>`;
+  }).join('');
+}
+
+function fmtPrice(won) {
+  if (!won||isNaN(won)) return '–';
+  const uk=Math.floor(won/10000), cheon=Math.round((won%10000)/1000);
+  return uk===0?`${(won/10000).toFixed(1)}억`:cheon>0?`${uk}억 ${cheon}천`:`${uk}억`;
+}
+
 function openAptDetail(idx) {
   reCurrentApt = reCurrentApts[idx];
-  document.getElementById('re-list-panel').style.display = 'none';
+  rePyeong = 'all';
+  document.getElementById('re-list-panel').style.display   = 'none';
   document.getElementById('re-detail-panel').style.display = 'block';
   renderAptDetail();
 }
 
 function closeReDetail() {
   document.getElementById('re-detail-panel').style.display = 'none';
-  document.getElementById('re-list-panel').style.display = 'block';
+  document.getElementById('re-list-panel').style.display   = 'block';
 }
 
 function renderAptDetail() {
-  const apt    = reCurrentApt;
-  const trades = apt.trades;
-  const built  = parseInt(apt.built) || 0;
-  const rebuildYear = built ? built + 40 : null;
-  const thisYear    = new Date().getFullYear();
-  const age         = built ? thisYear - built : null;
-
-  // 평형별 그룹핑
-  const pyeongMap = {};
-  trades.forEach(t => {
-    const area = parseFloat(t.ARCH_AREA || 0);
-    const py   = area ? Math.round(area / 3.3) + '평' : '?평';
-    if (!pyeongMap[py]) pyeongMap[py] = [];
-    pyeongMap[py].push(t);
-  });
-  const pyeongs = Object.keys(pyeongMap).sort((a,b) => parseInt(a)-parseInt(b));
-
-  // 필터링
-  const filtered = rePyeong === 'all' ? trades : (pyeongMap[rePyeong] || trades);
-
-  // 기간 필터
-  const now = new Date();
-  const periodMap = {'3m':3,'6m':6,'1y':12,'3y':36,'5y':60,'10y':120};
-  const months    = periodMap[rePeriod] || 3;
-  const cutoff    = new Date(now.getFullYear(), now.getMonth() - months, 1);
-  const periodFiltered = filtered.filter(t => {
-    const d = t.DEAL_YMD ? new Date(
-      t.DEAL_YMD.slice(0,4),
-      parseInt(t.DEAL_YMD.slice(4,6))-1,
-      t.DEAL_YMD.slice(6,8)||1
-    ) : null;
-    return d ? d >= cutoff : true;
-  });
-
-  const prices  = filtered.map(t => parseInt((t.OBJ_AMT||'0').replace(/,/g,'')));
-  const maxP    = Math.max(...prices);
-  const minP    = Math.min(...prices);
-  const avgP    = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
-  const area    = parseFloat(filtered[0]?.ARCH_AREA || 0);
-  const jibun   = filtered[0]?.JIBUN || '–';
-
+  const apt=reCurrentApt, built=parseInt(apt.built)||0;
+  const rebuildYear=built?built+40:null, age=built?new Date().getFullYear()-built:null;
+  const pyeongMap={};
+  apt.trades.forEach(t=>{const py=t.area?Math.round(t.area/3.3)+'평':'?평';if(!pyeongMap[py])pyeongMap[py]=[];pyeongMap[py].push(t);});
+  const pyeongs=Object.keys(pyeongMap).sort((a,b)=>parseInt(a)-parseInt(b));
+  const filtered=rePyeong==='all'?apt.trades:(pyeongMap[rePyeong]||apt.trades);
+  const prices=filtered.map(t=>t.amount);
+  const maxP=Math.max(...prices), minP=Math.min(...prices), avgP=Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
   document.getElementById('re-detail-content').innerHTML = `
     <div class="re-detail-title">${apt.name}</div>
-    <div class="re-detail-meta">
-      📍 ${reSelectedGu?.name} ${apt.dong || ''} ${jibun}<br>
-      🏗 준공 ${built || '?'}년 (${age ? age+'년차' : '?'}) &nbsp;|&nbsp;
-      🔨 재건축 예상 ${rebuildYear ? rebuildYear+'년' : '–'} &nbsp;|&nbsp;
-      📋 조회기간 거래 ${filtered.length}건
-    </div>
-
-    <!-- 정보 카드 -->
+    <div class="re-detail-meta">📍 ${reSelectedGu?.name} ${apt.dong||''} &nbsp;|&nbsp; 🏗 준공 ${built||'?'}년 ${age?`(${age}년차)`:''} &nbsp;|&nbsp; 🔨 재건축 예상 <strong>${rebuildYear?rebuildYear+'년':'–'}</strong></div>
     <div class="re-info-grid">
       <div class="re-info-item"><div class="re-info-label">최고 거래가</div><div class="re-info-val yl">${fmtPrice(maxP)}</div></div>
       <div class="re-info-item"><div class="re-info-label">평균 거래가</div><div class="re-info-val ac">${fmtPrice(avgP)}</div></div>
       <div class="re-info-item"><div class="re-info-label">최저 거래가</div><div class="re-info-val">${fmtPrice(minP)}</div></div>
-      <div class="re-info-item"><div class="re-info-label">전용면적(㎡)</div><div class="re-info-val">${area ? area.toFixed(1)+'㎡' : '–'}</div></div>
-      <div class="re-info-item"><div class="re-info-label">건축연도</div><div class="re-info-val">${built || '–'}년</div></div>
-      <div class="re-info-item"><div class="re-info-label">재건축 예상</div><div class="re-info-val gr">${rebuildYear ? rebuildYear+'년' : '–'}</div></div>
+      <div class="re-info-item"><div class="re-info-label">거래 건수</div><div class="re-info-val">${filtered.length}건</div></div>
+      <div class="re-info-item"><div class="re-info-label">건축연도</div><div class="re-info-val">${built||'–'}년</div></div>
+      <div class="re-info-item"><div class="re-info-label">재건축 예상</div><div class="re-info-val gr">${rebuildYear?rebuildYear+'년':'–'}</div></div>
     </div>
-
-    <!-- 기간 탭 -->
-    <div class="re-tab-bar">
-      ${['3m','6m','1y','3y','5y','10y'].map(p =>
-        `<button class="re-tab ${rePeriod===p?'active':''}" onclick="setRePeriod('${p}')">${p==='3m'?'3개월':p==='6m'?'6개월':p==='1y'?'1년':p==='3y'?'3년':p==='5y'?'5년':'10년'}</button>`
-      ).join('')}
-    </div>
-
-    <!-- 평형 탭 -->
     <div class="re-pyeong-bar">
       <button class="re-tab ${rePyeong==='all'?'active':''}" onclick="setRePyeong('all')">전체</button>
-      ${pyeongs.map(p =>
-        `<button class="re-tab ${rePyeong===p?'active':''}" onclick="setRePyeong('${p}')">${p}</button>`
-      ).join('')}
+      ${pyeongs.map(p=>`<button class="re-tab ${rePyeong===p?'active':''}" onclick="setRePyeong('${p}')">${p}</button>`).join('')}
     </div>
-
-    <!-- 가격 추이 차트 (SVG) -->
+    <div class="re-tab-bar" id="re-period-tabs">
+      ${['3m','6m','1y','3y','5y'].map(p=>`<button class="re-tab ${rePeriod===p?'active':''}" onclick="setRePeriod('${p}')">${p==='3m'?'3개월':p==='6m'?'6개월':p==='1y'?'1년':p==='3y'?'3년':'5년'}</button>`).join('')}
+    </div>
     <div class="re-chart-wrap">
-      <div class="re-chart-title">📈 실거래가 추이</div>
-      ${renderPriceChart(periodFiltered)}
+      <div class="re-chart-title">📈 실거래가 추이 로딩 중…</div>
+      <div id="re-chart-area"><div class="re-loading"><div class="spinner"></div></div></div>
     </div>
-
-    <!-- 거래 이력 테이블 -->
-    <table class="re-table">
-      <thead><tr>
-        <th>거래일</th><th>면적(㎡)</th><th>층</th><th>거래가</th><th>전월比</th>
-      </tr></thead>
-      <tbody>
-        ${filtered.slice(0,30).map((t,i) => {
-          const p    = parseInt((t.OBJ_AMT||'0').replace(/,/g,''));
-          const prev = filtered[i+1] ? parseInt((filtered[i+1].OBJ_AMT||'0').replace(/,/g,'')) : null;
-          const diff = prev ? p - prev : null;
-          const diffStr = diff != null ? (diff>=0?`<span class="up">▲${fmtPrice(Math.abs(diff))}</span>`:`<span class="dn">▼${fmtPrice(Math.abs(diff))}</span>`) : '–';
-          const ym = t.DEAL_YMD || '';
-          const dateStr = ym ? `${ym.slice(0,4)}.${ym.slice(4,6)}${ym.slice(6,8)?'.'+ym.slice(6,8):''}` : '–';
-          return `<tr>
-            <td>${dateStr}</td>
-            <td>${parseFloat(t.ARCH_AREA||0).toFixed(1)}</td>
-            <td>${t.FLOOR||'–'}층</td>
-            <td class="price-cell">${fmtPrice(p)}</td>
-            <td>${diffStr}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
+    <div style="font-size:11px;color:var(--dim);font-family:var(--font-mono);margin-bottom:8px;">현재 조회월 거래 내역</div>
+    <table class="re-table"><thead><tr><th>거래일</th><th>면적(㎡)</th><th>층</th><th>거래가</th></tr></thead><tbody>
+      ${filtered.sort((a,b)=>b.dealDate.localeCompare(a.dealDate)).slice(0,20).map(t=>`
+      <tr><td>${t.dealDate.slice(0,4)}.${t.dealDate.slice(4,6)}.${t.dealDate.slice(6,8)}</td>
+      <td>${t.area?.toFixed(1)||'–'}</td><td>${t.floor||'–'}층</td><td class="price-cell">${fmtPrice(t.amount)}</td></tr>`).join('')}
+    </tbody></table>`;
+  loadPriceTrend(apt.name, reSelectedGu?.code, rePeriod, rePyeong, pyeongMap);
 }
 
-/* SVG 가격 차트 */
+async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  const now = new Date();
+  const periodMap = {'3m':3,'6m':6,'1y':12,'3y':36,'5y':60};
+  const months = periodMap[period] || 12;
+  const yyyymmList = [];
+  for (let i=0; i<months; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    yyyymmList.push(`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  const allTrades = [];
+  const batchSize = 4;
+  for (let i=0; i<yyyymmList.length; i+=batchSize) {
+    const batch = yyyymmList.slice(i, i+batchSize);
+    const results = await Promise.allSettled(batch.map(async ym => {
+      const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${guCode}&DEAL_YMD=${ym}`;
+      const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
+      const res  = await fetch(url);
+      const xml  = new DOMParser().parseFromString(await res.text(), 'text/xml');
+      const items = [...xml.querySelectorAll('item')];
+      const g = (el,tag) => el.querySelector(tag)?.textContent?.trim()||'';
+      return items.filter(item=>g(item,'aptNm')===aptName).map(item=>({
+        amount:   parseInt(g(item,'dealAmount').replace(/,/g,'')||'0'),
+        area:     parseFloat(g(item,'excluUseAr')||'0'),
+        dealDate: `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
+      }));
+    }));
+    results.forEach(r=>{ if(r.status==='fulfilled') allTrades.push(...r.value); });
+  }
+  const trendData = (pyeong==='all' ? allTrades : allTrades.filter(t=>Math.round(t.area/3.3)+'평'===pyeong))
+    .sort((a,b)=>a.dealDate.localeCompare(b.dealDate));
+  const chartArea = document.getElementById('re-chart-area');
+  const titleEl   = document.querySelector('.re-chart-title');
+  if (!chartArea) return;
+  if (!trendData.length) {
+    if(titleEl) titleEl.textContent='📈 실거래가 추이 (데이터 없음)';
+    chartArea.innerHTML='<div style="text-align:center;padding:20px;color:var(--dim);font-size:12px;">해당 기간 거래 데이터가 없습니다.</div>';
+    return;
+  }
+  if(titleEl) titleEl.textContent=`📈 실거래가 추이 (${trendData.length}건)`;
+  chartArea.innerHTML = renderPriceChart(trendData);
+}
+
 function renderPriceChart(trades) {
-  if (!trades.length) return '<div style="color:var(--dim);font-size:12px;text-align:center;padding:20px;">데이터 없음</div>';
-
-  const pts = trades
-    .filter(t => t.DEAL_YMD && t.OBJ_AMT)
-    .map(t => ({
-      date: t.DEAL_YMD,
-      price: parseInt((t.OBJ_AMT||'0').replace(/,/g,'')),
-    }))
-    .sort((a,b) => a.date.localeCompare(b.date));
-
-  if (pts.length < 2) return '<div style="color:var(--dim);font-size:12px;text-align:center;padding:20px;">데이터 부족</div>';
-
-  const W=460, H=120, PAD=30;
-  const prices = pts.map(p=>p.price);
-  const minP   = Math.min(...prices);
-  const maxP   = Math.max(...prices);
-  const range  = maxP - minP || 1;
-
-  const toX = (i) => PAD + (i/(pts.length-1))*(W-PAD*2);
-  const toY = (p) => PAD + (1-(p-minP)/range)*(H-PAD*2);
-
-  const linePts = pts.map((p,i) => `${toX(i)},${toY(p.price)}`).join(' ');
-  const areaPts = `${toX(0)},${H} ${linePts} ${toX(pts.length-1)},${H}`;
-
-  // 눈금
-  const gridLines = [0,.25,.5,.75,1].map(r => {
-    const y = PAD + r*(H-PAD*2);
-    const v = maxP - r*range;
+  if (trades.length < 2) return '<div style="color:var(--dim);font-size:12px;text-align:center;padding:20px;">데이터 부족</div>';
+  const W=460,H=130,PAD=40;
+  const prices=trades.map(t=>t.amount), minP=Math.min(...prices), maxP=Math.max(...prices), range=maxP-minP||1;
+  const toX=i=>PAD+(i/(trades.length-1))*(W-PAD*2);
+  const toY=p=>PAD+(1-(p-minP)/range)*(H-PAD*2);
+  const linePts=trades.map((t,i)=>`${toX(i)},${toY(t.amount)}`).join(' ');
+  const areaPts=`${toX(0)},${H} ${linePts} ${toX(trades.length-1)},${H}`;
+  const gridLines=[0,0.5,1].map(r=>{const y=PAD+r*(H-PAD*2),v=maxP-r*range;
     return `<line x1="${PAD}" y1="${y}" x2="${W-PAD}" y2="${y}" stroke="var(--border)" stroke-width=".5"/>
-            <text x="${PAD-4}" y="${y}" text-anchor="end" font-size="7" fill="var(--muted)">${fmtPrice(v)}</text>`;
-  }).join('');
-
+            <text x="${PAD-5}" y="${y+4}" text-anchor="end" font-size="8" fill="var(--muted)">${fmtPrice(v)}</text>`;}).join('');
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:130px;">
+    <defs><linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--accent)" stop-opacity=".3"/>
+      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+    </linearGradient></defs>
     ${gridLines}
-    <defs>
-      <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="var(--accent)" stop-opacity=".3"/>
-        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
     <polygon points="${areaPts}" fill="url(#rg)"/>
     <polyline points="${linePts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/>
-    ${pts.map((p,i)=>`<circle cx="${toX(i)}" cy="${toY(p.price)}" r="2.5" fill="var(--accent)"/>`).join('')}
+    ${trades.map((t,i)=>`<circle cx="${toX(i)}" cy="${toY(t.amount)}" r="2.5" fill="var(--accent)"/>`).join('')}
   </svg>`;
 }
 
-function setRePeriod(p) { rePeriod = p; renderAptDetail(); }
-function setRePyeong(p) { rePyeong = p; renderAptDetail(); }
-
-// 연/월 변경 시 재조회
-['re-year','re-month'].forEach(id => {
-  document.getElementById(id)?.addEventListener('change', () => {
-    if (reSelectedGu) {
-      loadAptList(reSelectedGu.code, reSelectedGu.name,
-        document.getElementById('re-year').value,
-        document.getElementById('re-month').value);
-    }
+function setRePeriod(p) {
+  rePeriod = p;
+  if (!reCurrentApt) return;
+  document.querySelectorAll('#re-period-tabs .re-tab').forEach(b=>{
+    b.classList.toggle('active', b.textContent.trim()===(p==='3m'?'3개월':p==='6m'?'6개월':p==='1y'?'1년':p==='3y'?'3년':'5년'));
   });
+  const pyeongMap={};
+  reCurrentApt.trades.forEach(t=>{const py=t.area?Math.round(t.area/3.3)+'평':'?평';if(!pyeongMap[py])pyeongMap[py]=[];pyeongMap[py].push(t);});
+  const chartArea=document.getElementById('re-chart-area'), titleEl=document.querySelector('.re-chart-title');
+  if(chartArea) chartArea.innerHTML='<div class="re-loading"><div class="spinner"></div></div>';
+  if(titleEl)   titleEl.textContent='📈 실거래가 추이 로딩 중…';
+  loadPriceTrend(reCurrentApt.name, reSelectedGu?.code, p, rePyeong, pyeongMap);
+}
+
+function setRePyeong(p) { rePyeong=p; renderAptDetail(); }
+
+
 });
 
 // 비밀번호 게이트
