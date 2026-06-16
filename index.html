@@ -531,17 +531,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     padding:28px 32px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;
   ">
     <p style="font-size:13px;color:var(--dim);text-align:center;">비밀번호를 입력하세요</p>
-    <input type="text" id="lock-input"
-      placeholder="비밀번호"
-      autocomplete="off"
-      onkeydown="if(event.key==='Enter')unlock()"
-      style="
-        background:var(--ink);border:1px solid var(--border);border-radius:6px;
-        color:var(--bright);font-size:15px;padding:10px 14px;outline:none;
-        width:100%;text-align:center;letter-spacing:.2em;
-        transition:border-color .15s;
-      "
-    >
+    <div id="lock-input-wrap"></div>
     <button onclick="unlock()" style="
       background:var(--accent);color:#fff;border:none;border-radius:6px;
       font-size:13px;font-weight:600;padding:10px;cursor:pointer;
@@ -1340,7 +1330,7 @@ function renderNews() {
   if (currentKeyword !== 'all') filtered = filtered.filter(n => matchesKeyword(n, currentKeyword));
 
   // 전체 탭: 최대 28개 / 소스 필터 탭: 12개 고정
-  const displayCount = currentSource === 'all' ? 36 : 15;
+  const displayCount = 36;
   const topN = filtered.slice(0, displayCount);
   document.getElementById('news-count').textContent = topN.length;
 
@@ -1968,9 +1958,7 @@ async function renderFinanceBar() {
 
   document.getElementById('finance-items').innerHTML =
     `<span style="font-family:var(--font-mono);font-size:10px;color:var(--dim);padding-right:12px;border-right:1px solid var(--border);margin-right:0;">📊 시장</span>` + html;
-  const isWeekend = [0,6].includes(new Date().getDay());
-  const delayNote = isWeekend ? '주말·직전종가' : '15분지연';
-  document.getElementById('finance-updated').textContent = `${delayNote} ${now}`;
+  document.getElementById('finance-updated').textContent = `15분지연 ${now}`;
 }
 
 // 금융 데이터 주기적 갱신 (5분마다)
@@ -2000,23 +1988,40 @@ async function getPwHash() {
   return h;
 }
 
+function createLockInput() {
+  const wrap = document.getElementById('lock-input-wrap');
+  wrap.innerHTML = '';
+  const inp = document.createElement('input');
+  inp.type        = 'password';
+  inp.placeholder = '비밀번호';
+  inp.id          = 'lock-input';
+  inp.setAttribute('autocomplete', 'new-password');
+  inp.style.cssText = `
+    background:var(--ink);border:1px solid var(--border);border-radius:6px;
+    color:var(--bright);font-size:15px;padding:10px 14px;outline:none;
+    width:100%;text-align:center;letter-spacing:.2em;transition:border-color .15s;
+    box-sizing:border-box;
+  `;
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+  wrap.appendChild(inp);
+  // 브라우저가 자동완성 채울 틈 없이 바로 포커스
+  requestAnimationFrame(() => { inp.value = ''; inp.focus(); });
+}
+
 async function unlock() {
-  const input = document.getElementById('lock-input').value;
-  const errEl = document.getElementById('lock-error');
-  if (!input) return;
-  const inputHash = await sha256(input);
+  const inp    = document.getElementById('lock-input');
+  const errEl  = document.getElementById('lock-error');
+  if (!inp || !inp.value) return;
+  const inputHash  = await sha256(inp.value);
   const storedHash = await getPwHash();
   if (inputHash === storedHash) {
     sessionStorage.setItem(SESSION_KEY, '1');
     document.getElementById('lock-screen').style.display = 'none';
-    document.getElementById('lock-input').value = '';
     errEl.style.display = 'none';
-    // 메인 초기화
     initApp();
   } else {
     errEl.style.display = 'block';
-    document.getElementById('lock-input').value = '';
-    document.getElementById('lock-input').focus();
+    createLockInput(); // 틀리면 입력창 새로 생성 (값 초기화)
   }
 }
 
@@ -2070,14 +2075,7 @@ function initApp() {
   } else {
     document.getElementById('lock-screen').style.display = 'flex';
     await getPwHash();
-    const inp = document.getElementById('lock-input');
-    inp.value = '';
-    // type=text로 렌더 → 자동완성 끼어들 틈 없이 password로 전환
-    setTimeout(() => {
-      inp.setAttribute('type', 'password');
-      inp.value = '';
-      inp.focus();
-    }, 50);
+    createLockInput(); // 동적 생성 — 자동완성 원천 차단
   }
 })();
 </script>
