@@ -210,7 +210,7 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto;}
 .refresh-btn:active{transform:translateY(0);box-shadow:0 1px 4px rgba(79,138,255,.3);}
 .refresh-btn.spinning svg{animation:spin .8s linear infinite;}
 [data-theme="light"] .refresh-btn{box-shadow:0 2px 8px rgba(37,99,235,.3);}
-@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes fadeInUp{from{opacity:0;transform:translate(-50%,10px);}to{opacity:1;transform:translate(-50%,0);}}
 
 /* ─── NEWS GRID ──────────────────────────────────────────── */
 .news-grid{
@@ -1398,16 +1398,12 @@ function updateTicker() {
   document.getElementById('ticker').innerHTML = items.map(t=>`<span>${t}</span>`).join('');
 }
 
-/* ── 뉴스카드 저장버튼 이벤트 위임 (모바일 호환) ─────────── */
+/* ── 뉴스카드 저장버튼 이벤트 위임 ──────────────────────── */
 document.getElementById('news-grid').addEventListener('click', e => {
   const btn = e.target.closest('.card-save-btn');
   if (!btn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  const type  = btn.dataset.type;
-  const title = btn.dataset.title || '';
-  const link  = btn.dataset.link  || '';
-  openModalFromCard(type, title, link);
+  e.preventDefault(); e.stopPropagation();
+  saveFromCard(btn.dataset.type, btn.dataset.title, btn.dataset.link);
 });
 
 /* ── FILTER EVENTS ───────────────────────────────────────── */
@@ -1504,11 +1500,19 @@ function renderInsightCardSb(row, type) {
   const cardCls = type === 'invest' ? 'investment' : 'blog';
   const tags    = row.tags ? row.tags.split(',').map(t =>
     `<span class="label-chip watch">${t.trim()}</span>`).join('') : '';
+  // 편집용 데이터 속성 (JSON 이스케이프)
+  const safeTitle  = (row.title||'').replace(/"/g,'&quot;');
+  const safeBody   = (row.body||'').replace(/"/g,'&quot;');
+  const safeTags   = (row.tags||'').replace(/"/g,'&quot;');
+  const safeUrl    = (row.source_url||'').replace(/"/g,'&quot;');
   return `
-  <div class="insight-card ${cardCls}" id="ic-${row.id}">
+  <div class="insight-card ${cardCls}" id="ic-${row.id}"
+    onclick="openEditModal(${row.id},'${type}',this.dataset.title,this.dataset.body,this.dataset.tags,this.dataset.url)"
+    data-title="${safeTitle}" data-body="${safeBody}" data-tags="${safeTags}" data-url="${safeUrl}"
+    style="cursor:pointer;" title="클릭하여 편집">
     <div class="insight-header">
       <div class="insight-title">${row.title}</div>
-      <button onclick="deleteInsight(${row.id},'${type}')"
+      <button onclick="event.stopPropagation();deleteInsight(${row.id},'${type}')"
         style="flex-shrink:0;margin-left:10px;font-size:11px;color:var(--dim);
                background:var(--tag-bg);border:1px solid var(--border);
                border-radius:4px;padding:2px 8px;cursor:pointer;"
@@ -1516,7 +1520,7 @@ function renderInsightCardSb(row, type) {
     </div>
     ${body ? `<div class="insight-body">${body}</div>` : ''}
     ${row.source_url ? `<div style="font-size:11px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-      <a href="${row.source_url}" target="_blank" rel="noopener">🔗 원문 보기</a></div>` : ''}
+      <a href="${row.source_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔗 원문 보기</a></div>` : ''}
     <div class="insight-footer">${tags}<span class="insight-date">${date}</span></div>
   </div>`;
 }
@@ -1590,20 +1594,87 @@ async function loadInsightsGh(type, owner, repo) {
   }
 }
 
+/* ── 뉴스카드 → 바로 저장 (모달 없이) ───────────────────── */
+async function saveFromCard(type, rawTitle, rawLink) {
+  const title = (rawTitle || '')
+    .replace(/&quot;/g,'"').replace(/&amp;/g,'&')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  const link  = rawLink ? decodeURIComponent(rawLink) : '';
+  const label = type === 'investment' ? 'investment' : 'blog';
+
+  if (!getSbCfg()) {
+    // Supabase 미설정 시 GitHub 폴백
+    const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    const c   = cfg[type === 'investment' ? 'invest' : 'blog'];
+    if (!c) return alert('⚙️ 설정에서 Supabase 또는 GitHub 정보를 먼저 저장하세요.');
+    const body = link ? `> 원문: ${link}` : '';
+    window.open(`https://github.com/${c.owner}/${c.repo}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}&labels=${encodeURIComponent(label)}`, '_blank');
+    return;
+  }
+
+  try {
+    await saveInsightSb({type: label, label, title, body: '', tags: '', source_url: link});
+    // 버튼 피드백
+    showSaveToast(type);
+  } catch(e) { alert('저장 실패: ' + e.message); }
+}
+
+function showSaveToast(type) {
+  const msg  = type === 'investment' ? '📈 투자 인사이트 저장됨' : '✍️ 블로그 인사이트 저장됨';
+  const toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = `
+    position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+    background:var(--panel);border:1px solid var(--border);
+    color:var(--bright);font-size:13px;font-weight:600;
+    padding:10px 20px;border-radius:20px;z-index:9999;
+    box-shadow:0 4px 16px rgba(0,0,0,.3);
+    animation:fadeInUp .3s ease;
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2000);
+}
+
+/* ── 인사이트 카드 편집 모달 ─────────────────────────────── */
+let editingInsightId = null;
+let editingInsightType = null;
+
+function openEditModal(id, type, title, body, tags, sourceUrl) {
+  editingInsightId   = id;
+  editingInsightType = type;
+  document.getElementById('modal-title').textContent = type === 'invest' ? '📈 투자 인사이트 편집' : '✍️ 블로그 인사이트 편집';
+  document.getElementById('modal-input-label').value = type === 'invest' ? 'investment' : 'blog';
+  document.getElementById('modal-input-title').value = title || '';
+  document.getElementById('modal-input-body').value  = body  || '';
+  document.getElementById('modal-input-tags').value  = tags  || '';
+  document.getElementById('modal-overlay').dataset.sourceUrl  = sourceUrl || '';
+  document.getElementById('modal-overlay').dataset.editMode   = '1';
+  document.getElementById('modal-overlay').classList.add('open');
+  // 저장 버튼 텍스트 변경
+  document.querySelector('#modal-overlay .btn-submit').textContent = '수정 저장';
+  setTimeout(() => document.getElementById('modal-input-body').focus(), 80);
+}
+
 /* ── MODAL ───────────────────────────────────────────────── */
 function openModal(type) {
-  currentModalType = type;
+  editingInsightId   = null;
+  editingInsightType = null;
+  currentModalType   = type;
+  delete document.getElementById('modal-overlay').dataset.editMode;
   document.getElementById('modal-title').textContent = type === 'investment' ? '새 투자 인사이트' : '새 블로그 아이디어';
   document.getElementById('modal-input-label').value = type === 'investment' ? 'investment' : 'blog';
   document.getElementById('modal-input-title').value = '';
   document.getElementById('modal-input-body').value  = '';
   document.getElementById('modal-input-tags').value  = '';
+  document.querySelector('#modal-overlay .btn-submit').textContent = '저장';
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('modal-input-title').focus(), 80);
 }
 
 function openModalFromCard(type, rawTitle, rawLink) {
-  // HTML 엔티티 디코딩 (data-* 속성에서 오는 경우 대응)
+  editingInsightId   = null;
+  editingInsightType = null;
+  delete document.getElementById('modal-overlay').dataset.editMode;
   const title = (rawTitle || '')
     .replace(/&quot;/g,'"').replace(/&amp;/g,'&')
     .replace(/&lt;/g,'<').replace(/&gt;/g,'>');
@@ -1612,9 +1683,10 @@ function openModalFromCard(type, rawTitle, rawLink) {
   document.getElementById('modal-title').textContent = type === 'investment' ? '📈 투자 인사이트로 저장' : '✍️ 블로그 인사이트로 저장';
   document.getElementById('modal-input-label').value = type === 'investment' ? 'investment' : 'blog';
   document.getElementById('modal-input-title').value = title;
-  document.getElementById('modal-input-body').value  = `메모:\n- `;
+  document.getElementById('modal-input-body').value  = '';
   document.getElementById('modal-input-tags').value  = '';
   document.getElementById('modal-overlay').dataset.sourceUrl = link;
+  document.querySelector('#modal-overlay .btn-submit').textContent = '저장';
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('modal-input-body').focus(), 80);
 }
@@ -1622,17 +1694,16 @@ function openModalFromCard(type, rawTitle, rawLink) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
   delete document.getElementById('modal-overlay').dataset.sourceUrl;
+  delete document.getElementById('modal-overlay').dataset.editMode;
+  editingInsightId   = null;
+  editingInsightType = null;
+  document.querySelector('#modal-overlay .btn-submit').textContent = '저장';
 }
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
 });
-
-// Ctrl+Enter 로 저장
 document.getElementById('modal-overlay').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    submitInsight();
-  }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitInsight(); }
   if (e.key === 'Escape') closeModal();
 });
 
@@ -1642,43 +1713,45 @@ async function submitInsight() {
   const label     = document.getElementById('modal-input-label').value;
   const tags      = document.getElementById('modal-input-tags').value.trim();
   const sourceUrl = document.getElementById('modal-overlay').dataset.sourceUrl || '';
+  const isEdit    = document.getElementById('modal-overlay').dataset.editMode === '1';
   if (!title) return alert('제목을 입력하세요.');
 
-  const type = currentModalType === 'investment' ? 'investment' : 'blog';
+  const btn = document.querySelector('#modal-overlay .btn-submit');
+  btn.textContent = '저장 중…'; btn.disabled = true;
 
-  /* Supabase 연결된 경우 — 인페이지 저장 */
-  if (getSbCfg()) {
-    const btn = document.querySelector('#modal-overlay .btn-submit');
-    btn.textContent = '저장 중…';
-    btn.disabled = true;
-    try {
-      await saveInsightSb({ type, label, title, body, tags, source_url: sourceUrl });
+  try {
+    if (isEdit && editingInsightId && getSbCfg()) {
+      // 수정 — PATCH
+      const c   = getSbCfg();
+      const res = await fetch(`${c.url}/rest/v1/insights?id=eq.${editingInsightId}`, {
+        method: 'PATCH',
+        headers: sbHeaders(),
+        body: JSON.stringify({title, body, tags, source_url: sourceUrl}),
+      });
+      if (!res.ok) throw new Error(res.status);
       closeModal();
-      // 현재 탭 갱신
-      const activeType = type === 'investment' ? 'invest' : 'blog';
-      loadInsightsSb(activeType);
-    } catch(e) {
-      alert('저장 실패: ' + e.message);
-    } finally {
-      btn.textContent = '저장';
-      btn.disabled = false;
+      autoLoadFromStorage(editingInsightType);
+    } else if (getSbCfg()) {
+      // 신규 저장
+      const type = currentModalType === 'investment' ? 'investment' : 'blog';
+      await saveInsightSb({type, label, title, body, tags, source_url: sourceUrl});
+      closeModal();
+      autoLoadFromStorage(type === 'investment' ? 'invest' : 'blog');
+    } else {
+      // GitHub 폴백
+      const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+      const c   = cfg[currentModalType === 'investment' ? 'invest' : 'blog'];
+      if (!c) return alert('설정에서 Supabase 또는 GitHub 정보를 먼저 저장하세요.');
+      const fullBody = body + (sourceUrl ? `\n\n**원문:** ${sourceUrl}` : '') + (tags ? `\n\n**태그:** ${tags}` : '');
+      window.open(`https://github.com/${c.owner}/${c.repo}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(fullBody)}&labels=${encodeURIComponent(label)}`, '_blank');
+      closeModal();
     }
-    return;
+  } catch(e) {
+    alert('저장 실패: ' + e.message);
+  } finally {
+    btn.textContent = isEdit ? '수정 저장' : '저장';
+    btn.disabled = false;
   }
-
-  /* GitHub 폴백 */
-  const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-  const c   = cfg[currentModalType === 'investment' ? 'invest' : 'blog'];
-  if (!c) return alert('설정(⚙️)에서 Supabase 또는 GitHub 정보를 먼저 저장하세요.');
-  const fullBody = body + (sourceUrl ? `\n\n**원문:** ${sourceUrl}` : '') + (tags ? `\n\n**태그:** ${tags}` : '');
-  window.open(
-    `https://github.com/${c.owner}/${c.repo}/issues/new?`
-    + `title=${encodeURIComponent(title)}`
-    + `&body=${encodeURIComponent(fullBody)}`
-    + `&labels=${encodeURIComponent(label)}`,
-    '_blank'
-  );
-  closeModal();
 }
 
 /* ── THEME TOGGLE ────────────────────────────────────────── */
@@ -1843,7 +1916,7 @@ const FINANCE_ITEMS = [
 /* Yahoo Finance v8 chart API — Worker 경유, 심볼 1개씩 */
 async function fetchYahooV8(symbol) {
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
-  const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=10d`;
+  const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
   const url  = workerUrl ? `${workerUrl}?url=${encodeURIComponent(base)}` : base;
   const res  = await fetchFinanceWithTimeout(url, {}, 7000);
   if (!res.ok) throw new Error(`Yahoo ${res.status}`);
@@ -1852,28 +1925,16 @@ async function fetchYahooV8(symbol) {
   const meta   = result?.meta;
   if (!meta) throw new Error('no meta');
 
-  const price  = meta.regularMarketPrice ?? meta.previousClose;
-  const closed = meta.marketState !== 'REGULAR';
+  const price    = meta.regularMarketPrice ?? meta.previousClose;
+  const closed   = meta.marketState !== 'REGULAR';
+  const prevClose = meta.chartPreviousClose
+                 ?? meta.regularMarketPreviousClose
+                 ?? meta.previousClose;
 
-  // 1순위: Yahoo 직접 제공값
-  let chg = meta.regularMarketChangePercent;
+  // 전일 종가 대비 등락률 직접 계산
+  const chg = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
 
-  // 2순위: regularMarketChange / previousClose 로 계산
-  if (!chg && meta.regularMarketChange && meta.regularMarketPreviousClose) {
-    chg = (meta.regularMarketChange / meta.regularMarketPreviousClose) * 100;
-  }
-
-  // 3순위: OHLC 마지막 두 거래일 종가로 계산
-  if (!chg || Math.abs(chg) < 0.0001) {
-    const closes = result?.indicators?.quote?.[0]?.close?.filter(v => v != null) || [];
-    if (closes.length >= 2) {
-      const prev = closes[closes.length - 2];
-      const last = closes[closes.length - 1];
-      if (prev && last) chg = ((last - prev) / prev) * 100;
-    }
-  }
-
-  return {val: price, chg: chg ?? 0, closed};
+  return {val: price, chg, closed};
 }
 
 async function fetchFinanceData() {
