@@ -751,6 +751,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
           <span id="re-panel-title" style="font-size:13px;color:var(--dim);">자치구를 선택하면 아파트 목록이 표시됩니다</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;" id="re-controls" style="display:none;">
             <select id="re-year" class="re-select">
+              <option value="2026">2026년</option>
               <option value="2025">2025년</option>
               <option value="2024">2024년</option>
               <option value="2023">2023년</option>
@@ -2378,20 +2379,41 @@ async function loadAptList(code, guName, year, month) {
 
   try {
     const res  = await fetch(url);
-    const data = await res.json();
-    const rows = data?.tbLnOpendataRtmsV?.row || [];
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e) { throw new Error(`JSON 파싱 실패: ${text.slice(0,100)}`); }
+
+    // 서울 API 응답 구조: { "tbLnOpendataRtmsV": { "list_total_count": N, "row": [...] } }
+    // 또는 에러: { "RESULT": { "CODE": "INFO-200", "MESSAGE": "..." } }
+    if (data?.RESULT?.CODE) {
+      throw new Error(`API 오류: ${data.RESULT.CODE} - ${data.RESULT.MESSAGE}`);
+    }
+
+    // 응답 키 자동 탐색
+    const topKey = Object.keys(data).find(k => k !== 'RESULT');
+    const inner  = topKey ? data[topKey] : null;
+    const rows   = inner?.row || data?.row || [];
 
     if (!rows.length) {
-      panel.innerHTML = '<div class="re-loading">해당 기간 거래 데이터가 없습니다.</div>';
+      const totalCount = inner?.list_total_count || 0;
+      panel.innerHTML = `<div class="re-loading">해당 기간 거래 데이터가 없습니다.<br><small style="opacity:.6">(API 응답 건수: ${totalCount})</small></div>`;
       return;
     }
 
     // 아파트명으로 그룹핑
     const aptMap = {};
     rows.forEach(r => {
-      const name = (r.BLDG_NM || '').trim();
+      const name = (r.BLDG_NM || r.bldg_nm || '').trim();
       if (!name) return;
-      if (!aptMap[name]) aptMap[name] = {name, trades:[], dong: r.BEOPJUNG_DONG_NM, built: r.BUILD_YEAR};
+      if (!aptMap[name]) aptMap[name] = {
+        name,
+        trades: [],
+        dong:  r.BEOPJUNG_DONG_NM || r.beopjung_dong_nm || '',
+        built: r.BUILD_YEAR || r.build_year || ''
+      };
       aptMap[name].trades.push(r);
     });
 
@@ -2399,13 +2421,13 @@ async function loadAptList(code, guName, year, month) {
 
     // 최고가 기준 정렬
     reCurrentApts.sort((a,b) => {
-      const pa = Math.max(...a.trades.map(t => parseInt((t.OBJ_AMT||'0').replace(/,/g,''))));
-      const pb = Math.max(...b.trades.map(t => parseInt((t.OBJ_AMT||'0').replace(/,/g,''))));
+      const pa = Math.max(...a.trades.map(t => parseInt((t.OBJ_AMT||t.obj_amt||'0').replace(/,/g,''))));
+      const pb = Math.max(...b.trades.map(t => parseInt((t.OBJ_AMT||t.obj_amt||'0').replace(/,/g,''))));
       return pb - pa;
     });
 
     panel.innerHTML = reCurrentApts.map((apt, i) => {
-      const prices  = apt.trades.map(t => parseInt((t.OBJ_AMT||'0').replace(/,/g,'')));
+      const prices   = apt.trades.map(t => parseInt((t.OBJ_AMT||t.obj_amt||'0').replace(/,/g,'')));
       const maxPrice = Math.max(...prices);
       const minPrice = Math.min(...prices);
       const avgPrice = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
@@ -2424,7 +2446,8 @@ async function loadAptList(code, guName, year, month) {
     }).join('');
 
   } catch(e) {
-    panel.innerHTML = `<div class="re-loading">오류: ${e.message}</div>`;
+    panel.innerHTML = `<div class="re-loading">⚠️ 오류: ${e.message}<br><small style="opacity:.7">Worker URL 설정(⚙️) 확인 및 Worker 재배포가 필요할 수 있어요.</small></div>`;
+    console.error('[부동산 API]', e);
   }
 }
 
