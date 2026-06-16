@@ -2263,12 +2263,21 @@ const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
   const now  = new Date();
   const curY = now.getFullYear();
   const curM = now.getMonth() + 1;
+
+  // 기본 선택: 2달 전 (실거래가 API 등록 지연 감안)
+  const defaultDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const defaultY    = defaultDate.getFullYear();
+  const defaultM    = defaultDate.getMonth() + 1;
+
   const yearSel = document.getElementById('re-year');
   for (let y = curY; y >= 2020; y--) {
     const opt = document.createElement('option');
-    opt.value = y; opt.textContent = `${y}년`;
+    opt.value = y;
+    opt.textContent = `${y}년`;
+    if (y === defaultY) opt.selected = true;
     yearSel.appendChild(opt);
   }
+
   function updateMonths(year) {
     const monthSel = document.getElementById('re-month');
     monthSel.innerHTML = '';
@@ -2277,10 +2286,12 @@ const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
       const opt = document.createElement('option');
       opt.value = String(m).padStart(2,'0');
       opt.textContent = `${m}월`;
+      if (parseInt(year) === defaultY && m === defaultM) opt.selected = true;
       monthSel.appendChild(opt);
     }
   }
-  updateMonths(curY);
+  updateMonths(defaultY);
+
   yearSel.addEventListener('change', () => {
     updateMonths(yearSel.value);
     if (reSelectedGu) loadAptList(reSelectedGu.code, reSelectedGu.name, yearSel.value, document.getElementById('re-month').value);
@@ -2334,7 +2345,7 @@ function initSeoulMap() {
   const container = document.getElementById('re-map-container');
   if (!container || container.querySelector('svg')) return;
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('viewBox','30 20 440 375');
+  svg.setAttribute('viewBox','25 15 455 385');
   const river = document.createElementNS('http://www.w3.org/2000/svg','path');
   river.setAttribute('d','M140,282 Q200,275 260,278 Q320,282 380,278 Q440,272 500,275');
   river.setAttribute('stroke','rgba(79,138,255,.2)');
