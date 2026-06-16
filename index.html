@@ -2374,7 +2374,7 @@ async function loadAptList(code, guName, year, month) {
 
   const yyyymm = `${year}${month}`;
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
-  const rawUrl = `${RE_API_BASE}/${RE_API_KEY}/json/tbLnOpendataRtmsV/1/1000/DEAL_YMD/${yyyymm}${yyyymm}/SGG_CD/${code}`;
+  const rawUrl = `${RE_API_BASE}/${RE_API_KEY}/json/tbLnOpendataRtmsV/1/1000/DEAL_YMD/${yyyymm}/SGG_CD/${code}`;
   const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
 
   try {
