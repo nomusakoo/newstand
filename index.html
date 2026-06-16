@@ -531,6 +531,8 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     padding:28px 32px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;
   ">
     <p style="font-size:13px;color:var(--dim);text-align:center;">비밀번호를 입력하세요</p>
+    <!-- 브라우저 자동완성 낚시용 가짜 필드 (화면 밖에 숨김) -->
+    <input type="password" style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;" tabindex="-1" aria-hidden="true">
     <div id="lock-input-wrap"></div>
     <button onclick="unlock()" style="
       background:var(--accent);color:#fff;border:none;border-radius:6px;
@@ -1841,16 +1843,16 @@ const FINANCE_ITEMS = [
 /* Yahoo Finance v8 chart API — Worker 경유, 심볼 1개씩 */
 async function fetchYahooV8(symbol) {
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
-  const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+  const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
   const url  = workerUrl ? `${workerUrl}?url=${encodeURIComponent(base)}` : base;
   const res  = await fetchFinanceWithTimeout(url, {}, 7000);
   if (!res.ok) throw new Error(`Yahoo ${res.status}`);
   const data = await res.json();
   const meta = data?.chart?.result?.[0]?.meta;
   if (!meta) throw new Error('no meta');
-  const price    = meta.regularMarketPrice ?? meta.previousClose;
-  const prevClose= meta.chartPreviousClose ?? meta.previousClose ?? price;
-  const chg      = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+  const price = meta.regularMarketPrice ?? meta.previousClose;
+  // regularMarketChangePercent 직접 사용 (Yahoo가 직접 계산한 값)
+  const chg   = meta.regularMarketChangePercent ?? 0;
   return {val: price, chg, closed: meta.marketState !== 'REGULAR'};
 }
 
