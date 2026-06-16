@@ -1215,8 +1215,9 @@ function switchTab(tabName) {
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + tabName).classList.add('active');
-  if (tabName === 'invest') autoLoadFromStorage('invest');
-  if (tabName === 'blog')   autoLoadFromStorage('blog');
+  if (tabName === 'invest')       autoLoadFromStorage('invest');
+  if (tabName === 'blog')         autoLoadFromStorage('blog');
+  if (tabName === 'realestate')   setTimeout(initSeoulMap, 50);
 }
 document.querySelectorAll('.tab-btn,.bnav-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -2616,15 +2617,6 @@ function setRePyeong(p) { rePyeong = p; renderAptDetail(); }
     }
   });
 });
-
-/* 탭 전환 시 지도 초기화 */
-const _origSwitchTab = switchTab;
-function switchTab(tabName) {
-  _origSwitchTab(tabName);
-  if (tabName === 'realestate') {
-    setTimeout(initSeoulMap, 50);
-  }
-}
 
 // 비밀번호 게이트
 (async function gate() {
