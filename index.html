@@ -2132,16 +2132,23 @@ async function fetchYahooV8(symbol) {
   const meta   = result?.meta;
   if (!meta) throw new Error('no meta');
 
-  const price    = meta.regularMarketPrice ?? meta.previousClose;
-  const closed   = meta.marketState !== 'REGULAR';
-  const prevClose = meta.chartPreviousClose
-                 ?? meta.regularMarketPreviousClose
-                 ?? meta.previousClose;
+  const price  = meta.regularMarketPrice ?? meta.previousClose;
+  const closed = meta.marketState !== 'REGULAR';
 
-  // 전일 종가 대비 등락률 직접 계산
-  const chg = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+  // 1순위: Yahoo가 직접 제공하는 전일 대비 등락률
+  let chg = meta.regularMarketChangePercent;
 
-  return {val: price, chg, closed};
+  // 2순위: regularMarketChange / previousClose
+  if ((chg == null || Math.abs(chg) < 0.0001) && meta.regularMarketChange && meta.regularMarketPreviousClose) {
+    chg = (meta.regularMarketChange / meta.regularMarketPreviousClose) * 100;
+  }
+
+  // 3순위: chartPreviousClose — 직전 거래일 종가 대비 (가장 정확한 폴백)
+  if ((chg == null || Math.abs(chg) < 0.0001) && meta.chartPreviousClose && price) {
+    chg = ((price - meta.chartPreviousClose) / meta.chartPreviousClose) * 100;
+  }
+
+  return {val: price, chg: chg ?? 0, closed};
 }
 
 async function fetchFinanceData() {
