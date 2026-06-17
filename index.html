@@ -512,6 +512,36 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 @media(min-width:641px){
   body{padding-bottom:0;}
 }
+/* ─── 오늘의 신규거래 ────────────────────────────────────── */
+.re-today-wrap{
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:16px;margin-bottom:20px;
+}
+.re-today-header{
+  display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;
+}
+.re-today-desc{font-size:11px;color:var(--dim);font-family:var(--font-mono);}
+.re-today-refresh{
+  margin-left:auto;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;
+  background:var(--tag-bg);border:1px solid var(--border);color:var(--dim);cursor:pointer;
+  transition:all .15s;
+}
+.re-today-refresh:hover{color:var(--accent);border-color:var(--accent);}
+.re-today-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.re-today-list{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;
+}
+.re-trade-card{
+  background:var(--ink);border:1px solid var(--border);border-radius:8px;
+  padding:10px 12px;display:flex;flex-direction:column;gap:4px;
+  border-left:3px solid var(--border);transition:border-color .15s;
+}
+.re-trade-card:hover{border-left-color:var(--accent);}
+.re-trade-apt{font-size:13px;font-weight:700;color:var(--bright);}
+.re-trade-info{font-size:11px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;}
+.re-trade-price{font-size:14px;font-weight:700;color:var(--accent2);margin-top:2px;}
+.re-trade-date{font-size:10px;color:var(--muted);font-family:var(--font-mono);}
+
 /* ─── 부동산 실거래가 ────────────────────────────────────── */
 .re-layout{display:grid;grid-template-columns:480px 1fr;gap:20px;min-height:680px;}
 @media(max-width:1000px){.re-layout{grid-template-columns:1fr;}}
@@ -783,6 +813,22 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 
 <!-- ══ TAB 2 · 부동산 실거래가 ═════════════════════════════ -->
 <section class="tab-panel" id="tab-realestate">
+
+  <!-- 오늘의 신규거래 -->
+  <div class="re-today-wrap">
+    <div class="re-today-header">
+      <span class="re-title">🏷️ 최신 실거래</span>
+      <span class="re-today-desc" id="re-today-desc">최근 등록 거래 · 6개 자치구</span>
+      <button class="re-today-refresh" id="re-today-refresh-btn" onclick="loadTodayTrades()">↺ 새로고침</button>
+    </div>
+    <!-- 자치구 탭 -->
+    <div class="re-today-tabs" id="re-today-tabs"></div>
+    <!-- 거래 목록 -->
+    <div class="re-today-list" id="re-today-list">
+      <div class="re-loading">자치구 탭을 클릭하면 최신 거래가 표시됩니다.</div>
+    </div>
+  </div>
+
   <div class="re-layout">
     <!-- 좌측: 서울 지도 -->
     <div class="re-map-wrap">
@@ -1267,7 +1313,14 @@ function switchTab(tabName) {
   document.getElementById('tab-' + tabName).classList.add('active');
   if (tabName === 'invest')       autoLoadFromStorage('invest');
   if (tabName === 'blog')         autoLoadFromStorage('blog');
-  if (tabName === 'realestate')   setTimeout(initSeoulMap, 50);
+  if (tabName === 'realestate') {
+    setTimeout(() => {
+      initSeoulMap();
+      initTodayTabs();
+      // 첫 진입 시 광진구 자동 선택
+      if (!todayActiveGu) selectTodayGu('11215');
+    }, 50);
+  }
 }
 document.querySelectorAll('.tab-btn,.bnav-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -2304,8 +2357,145 @@ function initApp() {
   loadAllNews();
 }
 
+/* ══ 오늘의 신규거래 ════════════════════════════════════════ */
+const TODAY_GU = [
+  {code:'11215', name:'광진구', color:'#4f8aff'},
+  {code:'11200', name:'성동구', color:'#27c97a'},
+  {code:'11680', name:'강남구', color:'#f5a623'},
+  {code:'11650', name:'서초구', color:'#a78bfa'},
+  {code:'11710', name:'송파구', color:'#fb923c'},
+  {code:'11620', name:'관악구', color:'#f87171'},
+];
+
+let todayActiveGu   = null;
+let todayTradesCache = {};  // {code: {ts, trades}}
+
+function initTodayTabs() {
+  const wrap = document.getElementById('re-today-tabs');
+  if (!wrap) return;
+  wrap.innerHTML = TODAY_GU.map(gu => `
+    <button class="re-tab" id="today-tab-${gu.code}"
+      onclick="selectTodayGu('${gu.code}')"
+      style="border-color:${gu.color}20;">${gu.name}</button>
+  `).join('');
+}
+
+async function selectTodayGu(code) {
+  todayActiveGu = code;
+  document.querySelectorAll('.re-today-tabs .re-tab').forEach(b => b.classList.remove('active'));
+  const activeTab = document.getElementById(`today-tab-${code}`);
+  const gu = TODAY_GU.find(g => g.code === code);
+  if (activeTab) {
+    activeTab.classList.add('active');
+    activeTab.style.borderColor = gu?.color || 'var(--accent)';
+    activeTab.style.color       = gu?.color || 'var(--accent)';
+    activeTab.style.background  = (gu?.color || '#4f8aff') + '18';
+  }
+  await loadTodayGuTrades(code);
+}
+
+async function loadTodayGuTrades(code) {
+  const list = document.getElementById('re-today-list');
+  const gu   = TODAY_GU.find(g => g.code === code);
+
+  // 캐시 확인 (1시간)
+  const cached = todayTradesCache[code];
+  if (cached && (Date.now() - cached.ts) < 60*60*1000) {
+    renderTodayTrades(cached.trades, gu);
+    return;
+  }
+
+  list.innerHTML = '<div class="re-loading"><div class="spinner"></div>조회 중…</div>';
+
+  const now     = new Date();
+  const year    = now.getFullYear();
+  const month   = String(now.getMonth() + 1).padStart(2,'0');
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  const rawUrl  = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}`;
+  const url     = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
+
+  try {
+    const res   = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const xml   = new DOMParser().parseFromString(await res.text(), 'text/xml');
+    const items = [...xml.querySelectorAll('item')];
+    if (!items.length) {
+      // 이번달 데이터 없으면 전월 시도
+      const prevDate  = new Date(year, now.getMonth() - 1, 1);
+      const prevYear  = prevDate.getFullYear();
+      const prevMonth = String(prevDate.getMonth() + 1).padStart(2,'0');
+      const rawUrl2   = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${prevYear}${prevMonth}`;
+      const url2      = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl2)}` : rawUrl2;
+      const res2      = await fetch(url2);
+      const xml2      = new DOMParser().parseFromString(await res2.text(), 'text/xml');
+      const items2    = [...xml2.querySelectorAll('item')];
+      const trades2   = parseTradeItems(items2);
+      todayTradesCache[code] = {ts: Date.now(), trades: trades2};
+      renderTodayTrades(trades2, gu);
+      return;
+    }
+    const trades = parseTradeItems(items);
+    todayTradesCache[code] = {ts: Date.now(), trades};
+    renderTodayTrades(trades, gu);
+  } catch(e) {
+    list.innerHTML = `<div class="re-loading">⚠️ ${e.message}</div>`;
+  }
+}
+
+function parseTradeItems(items) {
+  const g = (el, tag) => el.querySelector(tag)?.textContent?.trim() || '';
+  return items.map(item => ({
+    aptNm:    g(item,'aptNm'),
+    dong:     g(item,'umdNm'),
+    amount:   parseInt(g(item,'dealAmount').replace(/,/g,'')||'0'),
+    area:     parseFloat(g(item,'excluUseAr')||'0'),
+    floor:    g(item,'floor'),
+    built:    g(item,'buildYear'),
+    dealDate: `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
+  })).sort((a,b) => b.dealDate.localeCompare(a.dealDate));
+}
+
+function renderTodayTrades(trades, gu) {
+  const list = document.getElementById('re-today-list');
+  if (!trades.length) {
+    list.innerHTML = '<div class="re-loading">거래 데이터가 없습니다.</div>';
+    return;
+  }
+
+  // 가장 최근 거래일 찾기
+  const latestDate = trades[0].dealDate;
+  const latestTrades = trades.filter(t => t.dealDate === latestDate);
+
+  // 날짜 포맷
+  const dateStr = `${latestDate.slice(0,4)}.${latestDate.slice(4,6)}.${latestDate.slice(6,8)}`;
+  document.getElementById('re-today-desc').textContent =
+    `최근 거래일 ${dateStr} · ${gu?.name || ''} ${latestTrades.length}건`;
+
+  list.innerHTML = latestTrades.map(t => `
+    <div class="re-trade-card" style="border-left-color:${gu?.color||'var(--accent)'}">
+      <div class="re-trade-apt">${t.aptNm}</div>
+      <div class="re-trade-info">
+        <span>📍 ${t.dong}</span>
+        <span>${t.area.toFixed(1)}㎡ (${Math.round(t.area/3.3)}평)</span>
+        <span>${t.floor}층</span>
+        <span>🏗 ${t.built}년</span>
+      </div>
+      <div class="re-trade-price">${fmtPrice(t.amount)}</div>
+      <div class="re-trade-date">${dateStr} 거래</div>
+    </div>
+  `).join('');
+}
+
+async function loadTodayTrades() {
+  const btn = document.getElementById('re-today-refresh-btn');
+  if (btn) { btn.textContent = '↺ 로딩중…'; btn.disabled = true; }
+  todayTradesCache = {};  // 캐시 초기화
+  if (todayActiveGu) await loadTodayGuTrades(todayActiveGu);
+  if (btn) { btn.textContent = '↺ 새로고침'; btn.disabled = false; }
+}
+
 /* ══════════════════════════════════════════════════════════
-   부동산 실거래가
+   부동산 JS
 ══════════════════════════════════════════════════════════ */
 const RE_API_KEY  = '88a33daa28380c66fdde8cd836e6d709fa23f9e9d6356362c0dacf8a639c503a';
 const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
@@ -2316,10 +2506,9 @@ const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
   const curY = now.getFullYear();
   const curM = now.getMonth() + 1;
 
-  // 기본 선택: 2달 전 (실거래가 API 등록 지연 감안)
-  const defaultDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-  const defaultY    = defaultDate.getFullYear();
-  const defaultM    = defaultDate.getMonth() + 1;
+  // 기본 선택: 현재 월
+  const defaultY = curY;
+  const defaultM = curM;
 
   const yearSel = document.getElementById('re-year');
   for (let y = curY; y >= 2020; y--) {
