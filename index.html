@@ -2798,7 +2798,11 @@ function renderAptCards() {
         <span>📋 ${apt.trades.length}건</span>
       </div>
       <div class="apt-price" style="margin-bottom:8px;">
-        최고 ${fmtPrice(maxP)} · 평균 ${fmtPrice(avgP)} · 최저 ${fmtPrice(minP)}
+        <span style="color:var(--red);font-weight:700;">최고 ${fmtPrice(maxP)}</span>
+        <span style="color:var(--dim);"> · </span>
+        <span style="color:var(--text);font-weight:600;">평균 ${fmtPrice(avgP)}</span>
+        <span style="color:var(--dim);"> · </span>
+        <span style="color:var(--accent);font-weight:700;">최저 ${fmtPrice(minP)}</span>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:6px;">
         ${tradeRows}
