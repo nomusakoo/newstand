@@ -2778,10 +2778,31 @@ function renderAptCards() {
   panel.innerHTML = reCurrentApts.map((apt,i) => {
     const prices=apt.trades.map(t=>t.amount);
     const maxP=Math.max(...prices), minP=Math.min(...prices), avgP=Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
+    // 거래 내역 최신순 정렬
+    const sorted = [...apt.trades].sort((a,b)=>b.dealDate.localeCompare(a.dealDate));
+    const tradeRows = sorted.map(t => `
+      <div style="display:flex;align-items:center;justify-content:space-between;
+        padding:5px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--dim);">
+          ${t.dealDate.slice(0,4)}.${t.dealDate.slice(4,6)}.${t.dealDate.slice(6,8)}
+          &nbsp;·&nbsp;${t.area?.toFixed(0)||'?'}㎡(${Math.round((t.area||0)/3.3)}평)
+          &nbsp;·&nbsp;${t.floor||'?'}층
+        </span>
+        <span style="font-size:13px;font-weight:700;color:var(--accent2);">${fmtPrice(t.amount)}</span>
+      </div>`).join('');
     return `<div class="apt-card" onclick="openAptDetail(${i})">
       <div class="apt-name">${apt.name}</div>
-      <div class="apt-meta"><span>📍 ${apt.dong||''}</span><span>🏗 ${apt.built||'?'}년 준공</span><span>📋 ${apt.trades.length}건</span></div>
-      <div class="apt-price">최고 ${fmtPrice(maxP)} · 평균 ${fmtPrice(avgP)} · 최저 ${fmtPrice(minP)}</div>
+      <div class="apt-meta">
+        <span>📍 ${apt.dong||''}</span>
+        <span>🏗 ${apt.built||'?'}년 준공</span>
+        <span>📋 ${apt.trades.length}건</span>
+      </div>
+      <div class="apt-price" style="margin-bottom:8px;">
+        최고 ${fmtPrice(maxP)} · 평균 ${fmtPrice(avgP)} · 최저 ${fmtPrice(minP)}
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:6px;">
+        ${tradeRows}
+      </div>
     </div>`;
   }).join('');
 }
