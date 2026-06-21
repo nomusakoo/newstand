@@ -3724,9 +3724,10 @@ function renderStockGroups(tab, list, dataArr) {
   if (!wrap) return;
 
   // 데이터에 stock 정보 합치기 (빈 코드 제외)
+  // list와 dataArr는 1:1 대응 — 빈 코드 제외 후 인덱스 보정
   const enriched = list
-    .filter(s => s.code)
-    .map((s,i) => ({stock:s, data:dataArr[list.filter(x=>x.code).indexOf(s)]}));
+    .map((s, i) => ({stock: s, data: dataArr[i]}))
+    .filter(item => item.stock.code);
 
   // 그룹별 분류 — STOCK_LIST 원본 순서 유지 (그룹 순서 고정)
   const groupOrder = [];
