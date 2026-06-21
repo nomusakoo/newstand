@@ -1151,7 +1151,11 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       <div class="sem-label">종목 추가</div>
       <div class="sem-row">
         <input class="sem-input" id="sem-add-name" placeholder="종목명 (예: 삼성전자)" maxlength="20" style="flex:1.2">
-        <input class="sem-input" id="sem-add-code" placeholder="코드 (예: 005930 또는 AAPL)" maxlength="12" style="flex:1">
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <input class="sem-input" id="sem-add-code" placeholder="코드 (예: 005930 / AAPL)" maxlength="12"
+            oninput="semVerifyCode(this.value)">
+          <div id="sem-code-status" style="font-size:10px;min-height:14px;padding-left:2px;"></div>
+        </div>
       </div>
       <div class="sem-row">
         <label class="sem-checkbox-row"><input type="checkbox" id="sem-add-dividend"> 배당주</label>
@@ -3417,11 +3421,14 @@ async function fetchStockQuote(stock) {
   const url     = workerUrl ? `${workerUrl}?url=${encodeURIComponent(base)}` : base;
   try {
     const res  = await fetchFinanceWithTimeout(url, {}, 8000);
-    if (!res.ok) throw new Error(res.status);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
+    // Yahoo API 에러 응답 체크 (result가 null인 경우)
+    const yahooErr = json?.chart?.error;
+    if (yahooErr) throw new Error(`Yahoo: ${yahooErr.description || yahooErr.code || 'Not Found'}`);
     const meta  = json?.chart?.result?.[0]?.meta;
     const q     = json?.chart?.result?.[0]?.indicators?.quote?.[0];
-    if (!meta) throw new Error('no meta');
+    if (!meta) throw new Error(`심볼 없음 (${symbol}) — 코드를 확인해주세요`);
     const closes  = (q?.close  || []).filter(v=>v!=null);
     const volumes = (q?.volume || []).filter(v=>v!=null);
     if (!closes.length) throw new Error('no closes');
@@ -4003,6 +4010,41 @@ function semSaveGroupName() {
   semRerender();
   saveStockList();
   showToast(`그룹명이 "${newName}"으로 저장됐어요.`);
+}
+
+let semVerifyTimer = null;
+async function semVerifyCode(rawCode) {
+  const statusEl = document.getElementById('sem-code-status');
+  const code = rawCode.trim().toUpperCase();
+  if (!statusEl) return;
+  if (code.length < 1) { statusEl.textContent = ''; return; }
+
+  // 디바운스 300ms
+  clearTimeout(semVerifyTimer);
+  statusEl.innerHTML = '<span style="color:var(--dim)">⏳ 확인 중…</span>';
+  semVerifyTimer = setTimeout(async () => {
+    const suffix = /^\d{6}$/.test(code) ? '.KS' : '';
+    const symbol = code + suffix;
+    const workerUrl = localStorage.getItem('ns_worker_url') || '';
+    const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
+    const url  = workerUrl ? `${workerUrl}?url=${encodeURIComponent(base)}` : base;
+    try {
+      const res  = await fetchFinanceWithTimeout(url, {}, 6000);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const yahooErr = json?.chart?.error;
+      if (yahooErr) throw new Error(yahooErr.description || yahooErr.code);
+      const meta = json?.chart?.result?.[0]?.meta;
+      if (!meta) throw new Error('심볼 없음');
+      const name = meta.shortName || meta.longName || symbol;
+      const price = meta.regularMarketPrice;
+      const nameInput = document.getElementById('sem-add-name');
+      if (nameInput && !nameInput.value.trim()) nameInput.value = name; // 종목명 자동완성
+      statusEl.innerHTML = `<span style="color:var(--green)">✅ ${name}${price ? ' · ' + (suffix ? price.toLocaleString('ko-KR') : '$'+price.toFixed(2)) : ''}</span>`;
+    } catch(e) {
+      statusEl.innerHTML = `<span style="color:var(--red)">❌ ${e.message} — 코드를 확인해주세요</span>`;
+    }
+  }, 300);
 }
 
 function semAddStock() {
