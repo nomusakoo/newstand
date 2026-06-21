@@ -632,6 +632,21 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .rsi-bar-wrap{width:50px;height:3px;background:var(--border);border-radius:2px;display:inline-block;vertical-align:middle;margin-left:3px;overflow:hidden;}
 .rsi-bar{height:100%;border-radius:2px;transition:width .5s ease;}
 .div-badge{background:rgba(245,166,35,.12);color:var(--accent2);border:1px solid rgba(245,166,35,.25);border-radius:4px;font-size:10px;font-weight:700;padding:1px 6px;}
+.sig-gc-passed{background:rgba(245,166,35,.18);color:#f5a623;border:1px solid rgba(245,166,35,.45);}
+.sig-gc-pending{background:rgba(56,189,248,.13);color:#38bdf8;border:1px solid rgba(56,189,248,.35);}
+/* 52주 위치 바 */
+.w52-wrap{display:flex;flex-direction:column;gap:3px;min-width:72px;}
+.w52-bar-track{height:4px;background:var(--border);border-radius:2px;overflow:hidden;position:relative;}
+.w52-bar-fill{height:100%;border-radius:2px;transition:width .5s ease;}
+.w52-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--muted);font-family:var(--font-mono);}
+.w52-pct{font-size:10px;font-weight:700;font-family:var(--font-mono);text-align:center;}
+.sig-disp-hot{background:rgba(255,90,90,.12);color:var(--red);border:1px solid rgba(255,90,90,.3);}
+.sig-disp-warm{background:rgba(245,166,35,.12);color:var(--accent2);border:1px solid rgba(245,166,35,.3);}
+.sig-disp-cool{background:rgba(39,201,122,.12);color:var(--green);border:1px solid rgba(39,201,122,.3);}
+.sig-disp-cold{background:rgba(56,189,248,.12);color:#38bdf8;border:1px solid rgba(56,189,248,.3);}
+.vol-surge{background:rgba(245,166,35,.15);color:var(--accent2);border:1px solid rgba(245,166,35,.4);
+  font-size:10px;font-weight:700;padding:2px 6px;border-radius:12px;display:inline-block;}
+.vol-normal{color:var(--dim);font-family:var(--font-mono);font-size:10px;}
 .stock-panel-inner{overflow-x:auto;}
 
 /* ─── 주식 편집 UI ───────────────────────────────────────── */
@@ -3423,10 +3438,13 @@ async function fetchStockQuote(stock) {
       const prev = meta.chartPreviousClose || meta.previousClose;
       chgPct = prev ? ((price - prev) / prev * 100) : 0;
     }
+    const w52High = meta.fiftyTwoWeekHigh ?? null;
+    const w52Low  = meta.fiftyTwoWeekLow  ?? null;
     const data = {
       name:    stock.name || meta.shortName || meta.longName,
       price, chgPct,
       rsi:    calcRSI(closes, 14),
+      sma5:   calcSMA(closes, 5),
       sma20:  calcSMA(closes, 20),
       sma60:  calcSMA(closes, 60),
       macd:   calcMACD(closes),
@@ -3435,6 +3453,14 @@ async function fetchStockQuote(stock) {
       vol:    volumes[volumes.length-1] || 0,
       vol20:  calcSMA(volumes, 20),
       isDividend: stock.isDividend,
+      goldenCross: calcGoldenCross(closes),
+      w52High, w52Low,
+      w52Pct: (w52High && w52Low && price)
+        ? Math.round((price - w52Low) / (w52High - w52Low) * 100)
+        : null,
+      disparity: (price && calcSMA(closes,20))
+        ? ((price - calcSMA(closes,20)) / calcSMA(closes,20) * 100)
+        : null,
     };
     data.score = calcStockScore(data);
     stockDataCache[stock.code] = {ts:Date.now(), data};
@@ -3446,22 +3472,134 @@ async function fetchStockQuote(stock) {
 }
 
 /* ── 기술 지표 계산 ──────────────────────────────────────── */
+/* 이격도 시그널
+ * +10% 이상: 과열 (단기 조정 가능성)
+ * +3~10%:    상승 추세 양호
+ * -3~+3%:    중립
+ * -3~-10%:   하락 추세
+ * -10% 이하: 과매도 (반등 가능성)
+ */
+function getDisparitySignal(disp) {
+  if (disp == null) return null;
+  const v = parseFloat(disp.toFixed(1));
+  if (v >= 10)  return {label:`+${v}% 과열`,   cls:'sig-disp-hot'};
+  if (v >= 3)   return {label:`+${v}% 상승`,   cls:'sig-disp-warm'};
+  if (v <= -10) return {label:`${v}% 과매도`,  cls:'sig-disp-cold'};
+  if (v <= -3)  return {label:`${v}% 하락`,    cls:'sig-disp-cool'};
+  return {label:`${v>=0?'+':''}${v}% 중립`, cls:'sig-hold'};
+}
+
 function calcSMA(arr,n){const s=arr.slice(-n);return s.length?s.reduce((a,b)=>a+b,0)/s.length:null;}
+
+/* 골든크로스 판정
+ * 'passed'  — SMA5가 SMA20을 최근 10일 이내 상향 돌파 (골든크로스 통과)
+ * 'pending' — SMA5가 SMA20 아래지만 차이가 빠르게 좁혀지는 중 (골든크로스 예정)
+ * null      — 해당 없음
+ */
+function calcGoldenCross(closes) {
+  if (closes.length < 25) return null;
+
+  // 매일의 SMA5, SMA20 계산 (최근 15일)
+  const days = 15;
+  const series = [];
+  for (let i = closes.length - days; i < closes.length; i++) {
+    const s5  = closes.slice(i - 4,  i + 1).reduce((a,b) => a+b, 0) / 5;
+    const s20 = closes.slice(i - 19, i + 1).reduce((a,b) => a+b, 0) / 20;
+    series.push({s5, s20, diff: s5 - s20});
+  }
+
+  const cur  = series[series.length - 1];
+  const prev = series[series.length - 2];
+
+  // 골든크로스 통과: 현재 SMA5 > SMA20 이고, 최근 10일 내 크로스 발생
+  if (cur.diff > 0) {
+    // 최근 10일 안에 SMA5 < SMA20 시점이 있었는지 확인
+    const recentSeries = series.slice(-10);
+    const hadBelow = recentSeries.some(d => d.diff < 0);
+    if (hadBelow) return 'passed'; // 최근에 크로스 발생
+    return null; // 오래 전에 크로스 — 해당 없음
+  }
+
+  // 골든크로스 예정: SMA5 < SMA20 이지만 차이가 좁혀지는 중
+  if (cur.diff < 0 && prev.diff < 0) {
+    const gap  = Math.abs(cur.diff);
+    const gapP = Math.abs(prev.diff);
+    const gapRate = cur.s20 > 0 ? gap / cur.s20 : 1; // 현재가 대비 이격률
+    // 5일 연속 차이 감소 추이 확인
+    const recentDiffs = series.slice(-6).map(d => Math.abs(d.diff));
+    const shrinking = recentDiffs.every((v, i) => i === 0 || v <= recentDiffs[i-1] * 1.05);
+    const closingFast = gapP > 0 && (gapP - gap) / gapP > 0.08; // 하루 8% 이상 좁혀짐
+    if (shrinking && closingFast && gapRate < 0.03) return 'pending'; // 이격률 3% 미만이고 좁혀지는 중
+  }
+
+  return null;
+}
 function calcEMA(arr,n){if(arr.length<n)return null;const k=2/(n+1);let e=arr.slice(0,n).reduce((a,b)=>a+b,0)/n;for(let i=n;i<arr.length;i++)e=arr[i]*k+e*(1-k);return e;}
 function calcRSI(c,p=14){if(c.length<p+1)return null;const d=c.slice(-p-1).map((v,i,a)=>i?v-a[i-1]:0).slice(1);const g=d.map(x=>x>0?x:0),l=d.map(x=>x<0?-x:0);const ag=g.reduce((a,b)=>a+b,0)/p,al=l.reduce((a,b)=>a+b,0)/p;return al===0?100:Math.round(100-100/(1+ag/al));}
 function calcMACD(c){if(c.length<26)return null;const e12=calcEMA(c,12),e26=calcEMA(c,26);if(!e12||!e26)return null;return{hist:e12-e26};}
 function calcBollingerBands(c,p=20,m=2){if(c.length<p)return null;const s=c.slice(-p),mean=s.reduce((a,b)=>a+b,0)/p,std=Math.sqrt(s.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/p),pr=c[c.length-1],u=mean+m*std,l=mean-m*std;return{upper:u,lower:l,mean,pct:Math.round((pr-l)/(u-l)*100)};}
 function calcStochastic(c,p=14){if(c.length<p)return null;const s=c.slice(-p),h=Math.max(...s),l=Math.min(...s),k=h===l?50:Math.round((c[c.length-1]-l)/(h-l)*100);return{k};}
 
-/* ── 종목 점수 ───────────────────────────────────────────── */
+/* ── 종목 점수 ─────────────────────────────────────────────
+ * 추세(SMA)    25% — 정배열/역배열
+ * RSI          20% — 과매도~과매수
+ * 볼린저밴드   15% — 밴드 내 위치
+ * 이격도       15% — SMA20 대비 현재가 (과열 감점)
+ * MACD         10% — 추세 전환 시그널
+ * 거래량        5% — 20일 평균 대비
+ * 52주위치     10% — 저점 근처 가점 / 고점 근처 감점
+ * 골든크로스 보너스: 통과+5점, 예정+3점 (합산 후 가산)
+ */
 function calcStockScore(d) {
   if (!d) return null;
   let s=0, w=0;
-  if (d.sma20&&d.price){s+=(d.price>d.sma20?(d.sma60&&d.price>d.sma60?85:65):25)*0.4;w+=0.4;}
-  if (d.rsi!=null){const r=d.rsi<25?85:d.rsi<35?72:d.rsi<50?58:d.rsi<65?42:d.rsi<75?28:15;s+=r*0.35;w+=0.35;}
-  if (d.bb){const b=d.bb.pct<20?80:d.bb.pct<40?62:d.bb.pct<60?45:d.bb.pct<80?30:15;s+=b*0.15;w+=0.15;}
-  if (d.macd){s+=(d.macd.hist>0?70:30)*0.1;w+=0.1;}
-  return w>0?Math.round(s/w):null;
+
+  // 추세 25%
+  if (d.sma20 && d.price) {
+    s += (d.price > d.sma20 ? (d.sma60 && d.price > d.sma60 ? 85 : 65) : 25) * 0.25;
+    w += 0.25;
+  }
+  // RSI 20%
+  if (d.rsi != null) {
+    const r = d.rsi<30?80 : d.rsi<40?70 : d.rsi<50?58 : d.rsi<60?45 : d.rsi<70?35 : 20;
+    s += r * 0.20; w += 0.20;
+  }
+  // 볼린저밴드 15%
+  if (d.bb) {
+    const b = d.bb.pct<15?78 : d.bb.pct<35?65 : d.bb.pct<65?48 : d.bb.pct<85?32 : 15;
+    s += b * 0.15; w += 0.15;
+  }
+  // 이격도 15%
+  if (d.disparity != null) {
+    const dp = d.disparity;
+    const ds = dp<=-10?82 : dp<=-5?68 : dp<=5?55 : dp<=10?38 : 20;
+    s += ds * 0.15; w += 0.15;
+  }
+  // MACD 10%
+  if (d.macd) {
+    s += (d.macd.hist > 0 ? 70 : 30) * 0.10; w += 0.10;
+  }
+  // 거래량 5%
+  if (d.vol20 && d.vol20 > 0) {
+    const vr = d.vol / d.vol20;
+    const vs = vr>=2?75 : vr>=1.5?65 : vr>=0.8?50 : vr>=0.5?38 : 25;
+    s += vs * 0.05; w += 0.05;
+  }
+  // 52주 위치 10% — 저점 근처일수록 매수 기회, 고점은 감점
+  if (d.w52Pct != null) {
+    const wp = d.w52Pct;
+    const ws = wp<=15?85 : wp<=30?72 : wp<=50?55 : wp<=70?42 : wp<=85?30 : 18;
+    s += ws * 0.10; w += 0.10;
+  }
+
+  let score = w > 0 ? Math.round(s / w) : null;
+  if (score == null) return null;
+
+  // 골든크로스 보너스 (최종 점수에 가산, 상한 100)
+  if (d.goldenCross === 'passed')  score = Math.min(100, score + 5);
+  if (d.goldenCross === 'pending') score = Math.min(100, score + 3);
+
+  return score;
 }
 
 function scoreLabel(s) {
@@ -3478,6 +3616,45 @@ function getMacdSignal(m){if(!m)return null;return m.hist>0?{label:'매수↑',c
 function getBbSignal(b){if(!b)return null;if(b.pct<15)return{label:'하단',cls:'sig-under'};if(b.pct>85)return{label:'상단',cls:'sig-over'};return{label:'중간',cls:'sig-hold'};}
 function getStochSignal(s){if(!s)return null;if(s.k<20)return{label:'과매도',cls:'sig-under'};if(s.k>80)return{label:'과매수',cls:'sig-over'};return{label:'보류',cls:'sig-hold'};}
 function getMaSignal(p,s20,s60){if(!p||!s20)return null;if(p>s20&&(!s60||p>s60))return{label:'정배열',cls:'sig-buy'};if(p<s20)return{label:'역배열',cls:'sig-sell'};return{label:'보류',cls:'sig-hold'};}
+function getVolSignal(vol, vol20) {
+  if (!vol20 || vol20 <= 0) return null;
+  const ratio = vol / vol20;
+  if (ratio >= 3)   return {label:`🔥${ratio.toFixed(1)}x 폭발`, cls:'sig-over'};
+  if (ratio >= 2)   return {label:`⚡${ratio.toFixed(1)}x 급증`, cls:'sig-gc-pending'};
+  if (ratio >= 1.5) return {label:`↑${ratio.toFixed(1)}x 증가`, cls:'sig-buy'};
+  return null; // 평범한 거래량은 시그널 없음
+}
+
+function renderVolCell(vol, vol20) {
+  if (!vol20 || vol20 <= 0) return '<span style="color:var(--muted)">–</span>';
+  const ratio = vol / vol20;
+  const pct   = (ratio * 100).toFixed(0) + '%';
+  const sig2  = getVolSignal(vol, vol20);
+  if (sig2) return `<span class="sig ${sig2.cls}">${sig2.label}</span>`;
+  return `<span class="vol-normal">${pct}</span>`;
+}
+
+function getGoldenCrossSignal(gc){
+  if(gc==='passed') return{label:'✨골든크로스',cls:'sig-gc-passed'};
+  if(gc==='pending') return{label:'⚡크로스예정',cls:'sig-gc-pending'};
+  return null;
+}
+
+function renderW52Bar(d) {
+  if (d.w52Pct == null || d.w52High == null || d.w52Low == null) return '<span style="color:var(--muted)">–</span>';
+  const pct  = d.w52Pct; // 0~100: 52주 저가=0, 고가=100
+  // 색상: 저점 근처=초록(매수구간), 고점 근처=빨강(과열)
+  const color = pct >= 80 ? 'var(--red)' : pct >= 50 ? 'var(--accent2)' : 'var(--green)';
+  const isKr  = d.w52High > 1000; // 국내주식 여부 (단위 차이)
+  const fmt   = v => isKr ? Math.round(v/10000)+'만' : '$'+v.toFixed(0);
+  return `<div class="w52-wrap">
+    <div class="w52-pct" style="color:${color};">${pct}%</div>
+    <div class="w52-bar-track">
+      <div class="w52-bar-fill" style="width:${pct}%;background:${color};"></div>
+    </div>
+    <div class="w52-labels"><span>${fmt(d.w52Low)}</span><span>${fmt(d.w52High)}</span></div>
+  </div>`;
+}
 
 /* ── 전체 로드 ───────────────────────────────────────────── */
 async function loadAllStockData() {
@@ -3531,20 +3708,23 @@ function renderStockGroups(tab, list, dataArr) {
     <table class="stock-table">
     <colgroup>
       <col style="width:160px"><col style="width:70px"><col style="width:100px">
-      <col style="width:70px"><col style="width:90px"><col style="width:80px">
-      <col style="width:75px"><col style="width:65px"><col style="width:60px">
-      <col style="width:50px"><col style="width:55px"><col style="width:28px">
+      <col style="width:70px"><col style="width:75px"><col style="width:80px">
+      <col style="width:90px"><col style="width:80px"><col style="width:75px">
+      <col style="width:65px"><col style="width:60px"><col style="width:78px"><col style="width:50px"><col style="width:55px"><col style="width:28px">
     </colgroup>
     <thead><tr>
       ${thSort('name','종목명','text')}
       ${thSort('code','코드','text')}
       ${thSort('price','현재가','num')}
       ${thSort('ma','이동평균','text')}
+      ${thSort('disp','이격도','num')}
+      ${thSort('gc','골든크로스','text')}
       ${thSort('rsi','RSI','num')}
       ${thSort('bb','볼린저','text')}
       ${thSort('stoch','스토캐스틱','num')}
       ${thSort('macd','MACD','text')}
       ${thSort('vol','거래량비','num')}
+      ${thSort('w52','52주위치','num')}
       <th>배당</th>
       ${thSort('score','점수 ★','num')}
       <th></th>
@@ -3562,7 +3742,7 @@ function renderStockGroups(tab, list, dataArr) {
       if (!d) return `<tr>
         <td class="stock-name-cell">${stock.name}</td>
         <td class="stock-code-cell">${stock.code}</td>
-        <td colspan="9" style="color:var(--red);font-size:11px;">데이터 없음</td>
+        <td colspan="12" style="color:var(--red);font-size:11px;">데이터 없음</td>
         <td></td></tr>`;
       const chgCls = d.chgPct>0?'val-up':d.chgPct<0?'val-dn':'';
       const chgStr = (d.chgPct>=0?'▲':'▼')+Math.abs(d.chgPct).toFixed(2)+'%';
@@ -3577,16 +3757,19 @@ function renderStockGroups(tab, list, dataArr) {
         <td class="stock-code-cell">${stock.code}</td>
         <td class="${chgCls}" style="font-family:var(--font-mono);font-weight:600;">${fmtP||'–'}<br><span style="font-size:10px;">${chgStr}</span></td>
         <td>${sig(getMaSignal(d.price,d.sma20,d.sma60))}</td>
+        <td>${sig(getDisparitySignal(d.disparity))}</td>
+        <td>${d.goldenCross ? sig(getGoldenCrossSignal(d.goldenCross)) : '<span style="color:var(--muted)">–</span>'}</td>
         <td style="font-family:var(--font-mono);">${d.rsi!=null?d.rsi:'–'}${rsiBar} ${sig(getRsiSignal(d.rsi))}</td>
         <td>${sig(getBbSignal(d.bb))}${d.bb?`<span style="font-size:10px;color:var(--dim)"> ${d.bb.pct}%</span>`:''}</td>
         <td>${d.stoch?.k??'–'} ${sig(getStochSignal(d.stoch))}</td>
         <td>${sig(getMacdSignal(d.macd))}</td>
-        <td style="font-size:10px;color:var(--dim);font-family:var(--font-mono);">${d.vol20?((d.vol/d.vol20*100).toFixed(0)+'%'):'–'}</td>
+        <td>${renderVolCell(d.vol, d.vol20)}</td>
+        <td>${renderW52Bar(d)}</td>
         <td>${stock.isDividend?'<span class="div-badge">배당</span>':'<span style="color:var(--muted)">–</span>'}</td>
         <td>${scoreLabel(d.score)}</td>
         <td></td>
       </tr>`;
-    }).join('') : `<tr><td colspan="12" style="padding:20px;text-align:center;color:var(--dim);font-size:12px;">
+    }).join('') : `<tr><td colspan="15" style="padding:20px;text-align:center;color:var(--dim);font-size:12px;">
       종목이 없습니다. 코드를 직접 추가해주세요.
     </td></tr>`;
 
@@ -3606,15 +3789,15 @@ function renderStockGroups(tab, list, dataArr) {
           <table class="stock-table">
           <colgroup>
             <col style="width:160px"><col style="width:70px"><col style="width:100px">
-            <col style="width:70px"><col style="width:90px"><col style="width:80px">
-            <col style="width:75px"><col style="width:65px"><col style="width:60px">
-            <col style="width:50px"><col style="width:55px"><col style="width:28px">
+            <col style="width:70px"><col style="width:75px"><col style="width:80px">
+            <col style="width:90px"><col style="width:80px"><col style="width:75px">
+            <col style="width:65px"><col style="width:60px"><col style="width:78px"><col style="width:50px"><col style="width:55px"><col style="width:28px">
           </colgroup>
           <thead><tr>
             ${thSort('name','종목명','text')}${thSort('code','코드','text')}${thSort('price','현재가','num')}
-            ${thSort('ma','이동평균','text')}${thSort('rsi','RSI','num')}${thSort('bb','볼린저','text')}
+            ${thSort('ma','이동평균','text')}${thSort('disp','이격도','num')}${thSort('gc','골든크로스','text')}${thSort('rsi','RSI','num')}${thSort('bb','볼린저','text')}
             ${thSort('stoch','스토캐스틱','num')}${thSort('macd','MACD','text')}${thSort('vol','거래량비','num')}
-            <th>배당</th>${thSort('score','점수★','num')}<th></th>
+            ${thSort('w52','52주위치','num')}<th>배당</th>${thSort('score','점수★','num')}<th></th>
           </tr></thead>
           <tbody>${rows}</tbody>
           </table>
@@ -3688,6 +3871,8 @@ function getSortVal(d, col) {
     case 'stoch': return d.stoch?.k;
     case 'vol':   return d.vol20 ? d.vol/d.vol20 : null;
     case 'score': return d.score;
+    case 'w52':   return d.w52Pct;
+    case 'disp':  return d.disparity;
     default: return null;
   }
 }
