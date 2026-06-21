@@ -6,6 +6,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>NEWSTAND · 우회의 가판대</title>
+<script>
+// 테마 깜빡임 방지: head에서 즉시 적용
+(function(){
+  const t = localStorage.getItem('newsstand_theme');
+  if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+})();
+</script>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><radialGradient id='g' cx='35%25' cy='35%25' r='65%25'><stop offset='0%25' stop-color='%23f5a623'/><stop offset='100%25' stop-color='%2327c97a'/></radialGradient></defs><circle cx='16' cy='16' r='14' fill='url(%23g)'/><circle cx='16' cy='16' r='7' fill='none' stroke='%230d0f14' stroke-width='2.5'/><circle cx='16' cy='16' r='2.5' fill='%230d0f14'/></svg>">
 <style>
 /* ─── TOKENS · DARK (기본) ───────────────────────────────── */
@@ -512,6 +519,37 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 @media(min-width:641px){
   body{padding-bottom:0;}
 }
+/* ─── 주식 모바일 카드뷰 ─────────────────────────────────── */
+.stock-card-view{display:none;}
+.stock-mobile-card{
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;display:flex;flex-direction:column;gap:8px;
+  cursor:pointer;transition:border-color .15s;
+}
+.stock-mobile-card:hover{border-color:var(--muted);}
+.stock-mobile-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.stock-mobile-name{font-size:13px;font-weight:700;color:var(--bright);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.stock-mobile-price{font-family:var(--font-mono);font-size:14px;font-weight:700;text-align:right;}
+.stock-mobile-chg{font-size:11px;font-family:var(--font-mono);}
+.stock-mobile-row{display:flex;gap:6px;flex-wrap:wrap;}
+.stock-mobile-badge{font-size:10px;padding:2px 7px;border-radius:12px;background:var(--tag-bg);color:var(--dim);border:1px solid var(--border);}
+.stock-mobile-bottom{display:flex;align-items:center;justify-content:space-between;}
+.stock-mobile-code{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.stock-mobile-group-hd{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;background:var(--panel);border-radius:8px;
+  font-size:11px;font-weight:700;color:var(--dim);
+  cursor:pointer;border:1px solid var(--border);margin-bottom:6px;
+  user-select:none;
+}
+.stock-mobile-group-hd:hover{background:var(--tag-bg);}
+.stock-mobile-cards{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+@media(max-width:640px){
+  .stock-panel-inner{overflow-x:unset;}
+  .stock-card-view{display:block;}
+  .stock-table-view{display:none;}
+  .stock-add-group-btn{margin-top:4px;}
+}
 /* ─── 오늘의 신규거래 ────────────────────────────────────── */
 .re-today-wrap{
   background:var(--panel);border:1px solid var(--border);border-radius:12px;
@@ -580,6 +618,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .stock-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;}
 .stock-table tr:last-child td{border-bottom:none;}
 .stock-table tr:hover td{background:rgba(79,138,255,.04);}
+.stock-table tbody tr[onclick]:hover td{background:rgba(79,138,255,.08);cursor:pointer;}
 .stock-table td.val-up{color:var(--red);}
 .stock-table td.val-dn{color:var(--accent);}
 .stock-name-cell{font-weight:700;color:var(--bright);}
@@ -647,6 +686,55 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .sem-divider{height:1px;background:var(--border);margin:2px 0;}
 .sem-checkbox-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);}
 .sem-checkbox-row input{accent-color:var(--accent2);width:14px;height:14px;}
+/* ─── 인사이트 검색/필터 ─────────────────────────────────── */
+.insight-search-bar{
+  display:flex;gap:8px;align-items:center;
+  margin-bottom:12px;flex-wrap:wrap;
+}
+.insight-search-input{
+  flex:1;min-width:180px;padding:7px 12px;border-radius:8px;
+  border:1px solid var(--border);background:var(--panel);
+  color:var(--bright);font-size:13px;font-family:var(--font-body);
+  outline:none;transition:border-color .15s;
+}
+.insight-search-input:focus{border-color:var(--accent);}
+.insight-tag-filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.insight-tag-btn{
+  padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;
+  background:var(--tag-bg);color:var(--dim);border:1px solid var(--border);
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.insight-tag-btn.active{background:rgba(245,166,35,.1);color:var(--accent2);border-color:rgba(245,166,35,.4);}
+.insight-tag-btn:hover:not(.active){color:var(--text);border-color:var(--muted);}
+.insight-no-result{grid-column:1/-1;text-align:center;padding:32px;color:var(--dim);font-size:13px;}
+.insight-sort-select{
+  padding:7px 10px;border-radius:8px;border:1px solid var(--border);
+  background:var(--panel);color:var(--dim);font-size:12px;font-weight:500;
+  font-family:var(--font-body);outline:none;cursor:pointer;
+  transition:border-color .15s;flex-shrink:0;
+}
+.insight-sort-select:focus{border-color:var(--accent);color:var(--bright);}
+.re-gu-edit-btn{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;
+  background:var(--tag-bg);color:var(--dim);border:1px solid var(--border);
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.re-gu-edit-btn:hover{background:rgba(79,138,255,.12);color:var(--accent);border-color:rgba(79,138,255,.35);}
+.gu-select-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  max-height:240px;overflow-y:auto;
+}
+.gu-select-item{
+  padding:6px 4px;border-radius:6px;border:1px solid var(--border);
+  background:var(--panel);font-size:11px;font-weight:600;color:var(--dim);
+  cursor:pointer;transition:all .15s;text-align:center;
+}
+.gu-select-item.selected{background:rgba(79,138,255,.12);color:var(--accent);border-color:var(--accent);}
+.gu-select-item:hover:not(.selected){border-color:var(--muted);color:var(--text);}
+.gu-order-list{display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;}
+.gu-order-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--panel);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--bright);}
+.gu-order-item span{flex:1;}
 .sem-order-item{
   display:flex;align-items:center;gap:8px;padding:8px 12px;
   background:var(--panel);border:1px solid var(--border);border-radius:7px;
@@ -930,6 +1018,33 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 
 </section>
 
+<!-- ══ 부동산 자치구 편집 모달 ══════════════════════════════ -->
+<div class="stock-edit-modal-bg" id="gu-edit-modal-bg" onclick="closeGuEditModal(event)">
+  <div class="stock-edit-modal" id="gu-edit-modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span class="sem-title">🏠 자치구 편집</span>
+      <button class="sem-btn sem-btn-ghost" onclick="closeGuEditModal()" style="padding:4px 10px;">✕</button>
+    </div>
+
+    <!-- 자치구 선택 -->
+    <div class="sem-section">
+      <div class="sem-label">자치구 선택 (최대 8개)</div>
+      <div class="gu-select-grid" id="gu-select-grid"></div>
+    </div>
+
+    <!-- 선택된 순서 -->
+    <div class="sem-section">
+      <div class="sem-label">선택된 순서 (▲▼ 조정)</div>
+      <div class="gu-order-list" id="gu-order-list"></div>
+    </div>
+
+    <div class="sem-row" style="justify-content:flex-end;gap:8px;margin-top:4px;">
+      <button class="sem-btn sem-btn-ghost" onclick="closeGuEditModal()">닫기</button>
+      <button class="sem-btn sem-btn-primary" onclick="saveGuEdit()">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ TAB 2 · 부동산 실거래가 ═════════════════════════════ -->
 <section class="tab-panel" id="tab-realestate">
 
@@ -938,6 +1053,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <div class="re-today-header">
       <span class="re-title">🏷️ 최신 실거래</span>
       <span class="re-today-desc" id="re-today-desc">최근 등록 거래 · 6개 자치구</span>
+      <button class="re-gu-edit-btn" onclick="openGuEditModal()">✏️ 자치구 편집</button>
       <button class="re-today-refresh" id="re-today-refresh-btn" onclick="loadTodayTrades()">↺ 새로고침</button>
     </div>
     <!-- 자치구 탭 -->
@@ -1136,6 +1252,15 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       <span class="count" id="invest-count">0</span>
       <button class="add-btn" style="margin-left:auto" onclick="openModal('investment')">+ 새 인사이트</button>
     </div>
+    <div class="insight-search-bar">
+      <input class="insight-search-input" id="invest-search" placeholder="🔍 제목·내용 검색…" oninput="filterInsights('invest')" autocomplete="off">
+      <select class="insight-sort-select" id="invest-sort" onchange="filterInsights('invest')">
+        <option value="newest">최신순</option>
+        <option value="oldest">오래된순</option>
+        <option value="title">제목순</option>
+      </select>
+    </div>
+    <div class="insight-tag-filters" id="invest-tag-filters"></div>
     <div class="insight-grid" id="invest-grid">
       <div class="state-box" style="grid-column:1/-1"><div class="emoji">📈</div><p>인사이트가 없습니다.</p></div>
     </div>
@@ -1148,6 +1273,15 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       <span class="count" id="blog-count">0</span>
       <button class="add-btn" style="margin-left:auto" onclick="openModal('blog')">+ 새 아이디어</button>
     </div>
+    <div class="insight-search-bar">
+      <input class="insight-search-input" id="blog-search" placeholder="🔍 제목·내용 검색…" oninput="filterInsights('blog')" autocomplete="off">
+      <select class="insight-sort-select" id="blog-sort" onchange="filterInsights('blog')">
+        <option value="newest">최신순</option>
+        <option value="oldest">오래된순</option>
+        <option value="title">제목순</option>
+      </select>
+    </div>
+    <div class="insight-tag-filters" id="blog-tag-filters"></div>
     <div class="insight-grid" id="blog-grid">
       <div class="state-box" style="grid-column:1/-1"><div class="emoji">✍️</div><p>아이디어가 없습니다.</p></div>
     </div>
@@ -1219,6 +1353,16 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
         <input type="text" id="worker-url-input" placeholder="https://rss-proxy.이름.workers.dev">
       </div>
       <span id="worker-status" style="font-size:11px;color:var(--dim);display:block;margin-top:6px;"></span>
+    </div>
+
+    <!-- 주식 목록 초기화 섹션 -->
+    <div style="border-top:1px solid var(--border);padding-top:14px;padding-bottom:14px;">
+      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">📊 주식 종목 목록</p>
+      <p style="font-size:11px;color:var(--dim);margin-bottom:10px;">편집한 그룹/종목을 기본값으로 되돌립니다.</p>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="resetStockList()" style="padding:6px 14px;border-radius:5px;background:rgba(255,90,90,.15);color:var(--red);border:1px solid rgba(255,90,90,.3);font-size:12px;font-weight:600;cursor:pointer;">↺ 기본값으로 초기화</button>
+        <span id="stock-reset-status" style="font-size:11px;color:var(--dim);"></span>
+      </div>
     </div>
 
     <!-- 비밀번호 변경 섹션 -->
@@ -1728,10 +1872,37 @@ function dedup(raw) {
   });
 }
 
+/* ── pubDate 파싱 강화 ───────────────────────────────────── */
+function parsePubDate(raw) {
+  if (!raw) return null;
+  // 표준 형식 먼저 시도
+  let d = new Date(raw);
+  if (!isNaN(d.getTime())) return d;
+  // 한국 언론사 비표준 포맷 처리: "2026.06.21 08:30:00" 등
+  const cleaned = raw
+    .replace(/(\d{4})\.(\d{2})\.(\d{2})/, '$1-$2-$3') // 점 구분자 → 대시
+    .replace(/오전\s*(\d+):/, (_, h) => `${String(parseInt(h)).padStart(2,'0')}:`)
+    .replace(/오후\s*(\d+):/, (_, h) => `${String(parseInt(h)+12).padStart(2,'0')}:`);
+  d = new Date(cleaned);
+  if (!isNaN(d.getTime())) return d;
+  return null;
+}
+
+function relativeTime(date) {
+  if (!date) return '';
+  const diff = Date.now() - date.getTime();
+  if (diff < 0) return '방금';
+  if (diff < 60000)    return '방금';
+  if (diff < 3600000)  return Math.floor(diff/60000) + '분 전';
+  if (diff < 86400000) return Math.floor(diff/3600000) + '시간 전';
+  // 하루 이상이면 날짜 표시
+  return date.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'});
+}
+
 function sortNews(raw) {
   return raw.sort((a, b) => {
-    const ta = a.pubDate ? new Date(a.pubDate).getTime() : 0;
-    const tb = b.pubDate ? new Date(b.pubDate).getTime() : 0;
+    const ta = a.pubDate ? (parsePubDate(a.pubDate)?.getTime() ?? 0) : 0;
+    const tb = b.pubDate ? (parsePubDate(b.pubDate)?.getTime() ?? 0) : 0;
     return tb - ta;
   });
 }
@@ -1838,8 +2009,10 @@ function renderNews() {
     const rank     = i + 1;
     const rankCls  = rank <= 3 ? `rank-${rank}` : '';
     const srcCls   = `src-${item.source}`;
-    const timeStr  = item.pubDate
-      ? new Date(item.pubDate).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+    const _pd = item.pubDate ? parsePubDate(item.pubDate) : null;
+    const timeStr = _pd ? relativeTime(_pd) : '';
+    const timeAbsolute = _pd
+      ? _pd.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
       : '';
     const titleHtml   = highlightKeyword(item.title,   currentKeyword);
     const snippetHtml = highlightKeyword(item.snippet, currentKeyword);
@@ -1852,7 +2025,7 @@ function renderNews() {
         <span class="card-rank">${String(rank).padStart(2,'0')}</span>
         <div class="card-source-time">
           <span class="card-source">${item.source}</span>
-          <span>${timeStr}</span>
+          <span title="${timeAbsolute}">${timeStr}</span>
         </div>
       </div>
       <div class="card-title"><a href="${item.link}" target="_blank" rel="noopener">${titleHtml}</a></div>
@@ -1928,6 +2101,37 @@ function sbHeaders() {
   };
 }
 
+/* ── Supabase user_settings 유틸 ────────────────────────── */
+async function sbSaveSetting(key, value) {
+  const cfg = getSbCfg();
+  if (!cfg) return false;
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/user_settings`, {
+      method: 'POST',
+      headers: {
+        ...sbHeaders(),
+        'Prefer': 'return=minimal,resolution=merge-duplicates',
+      },
+      body: JSON.stringify({key, value, updated_at: new Date().toISOString()}),
+    });
+    return res.ok;
+  } catch(e) { console.warn('sbSaveSetting 실패:', e); return false; }
+}
+
+async function sbLoadSetting(key) {
+  const cfg = getSbCfg();
+  if (!cfg) return null;
+  try {
+    const res = await fetch(
+      `${cfg.url}/rest/v1/user_settings?key=eq.${encodeURIComponent(key)}&limit=1`,
+      { headers: sbHeaders() }
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows?.[0]?.value ?? null;
+  } catch(e) { console.warn('sbLoadSetting 실패:', e); return null; }
+}
+
 /* ── GITHUB CONFIG (폴백용) ──────────────────────────────── */
 function saveGitHubConfig(owner, repo) {
   const cfg = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
@@ -1947,6 +2151,75 @@ function autoLoadFromStorage(type) {
 }
 
 /* ── SUPABASE — 인사이트 불러오기 ────────────────────────── */
+/* ── 인사이트 캐시 & 검색/필터 ──────────────────────────── */
+const insightRowsCache = {invest: [], blog: []};
+const insightTagFilter  = {invest: '', blog: ''};
+
+function renderInsightTagFilters(type, rows) {
+  // 전체 태그 수집
+  const tagCount = {};
+  rows.forEach(r => {
+    if (!r.tags) return;
+    r.tags.split(',').forEach(t => {
+      const tag = t.trim();
+      if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1;
+    });
+  });
+  const tags = Object.entries(tagCount).sort((a,b) => b[1]-a[1]).slice(0, 15);
+  const filterId = type === 'invest' ? 'invest-tag-filters' : 'blog-tag-filters';
+  const el = document.getElementById(filterId);
+  if (!el) return;
+  el.innerHTML = tags.length ? [
+    `<button class="insight-tag-btn active" onclick="setInsightTagFilter('${type}','')">전체</button>`,
+    ...tags.map(([tag]) =>
+      `<button class="insight-tag-btn" onclick="setInsightTagFilter('${type}','${tag.replace(/'/g,"\\'")}'">${tag}</button>`)
+  ].join('') : '';
+}
+
+function setInsightTagFilter(type, tag) {
+  insightTagFilter[type] = tag;
+  const filterId = type === 'invest' ? 'invest-tag-filters' : 'blog-tag-filters';
+  document.querySelectorAll(`#${filterId} .insight-tag-btn`).forEach(btn => {
+    const btnTag = btn.textContent === '전체' ? '' : btn.textContent;
+    btn.classList.toggle('active', btnTag === tag);
+  });
+  filterInsights(type);
+}
+
+function filterInsights(type) {
+  const rows     = insightRowsCache[type];
+  const gridId   = type === 'invest' ? 'invest-grid' : 'blog-grid';
+  const countId  = type === 'invest' ? 'invest-count' : 'blog-count';
+  const searchId = type === 'invest' ? 'invest-search' : 'blog-search';
+  const sortId   = type === 'invest' ? 'invest-sort'   : 'blog-sort';
+  const query    = (document.getElementById(searchId)?.value || '').toLowerCase().trim();
+  const tagF     = insightTagFilter[type];
+  const sortVal  = document.getElementById(sortId)?.value || 'newest';
+
+  let filtered = rows.filter(r => {
+    const text = ((r.title || '') + ' ' + (r.body || '')).toLowerCase();
+    const matchQ = !query || text.includes(query);
+    const matchT = !tagF || (r.tags || '').split(',').map(t => t.trim()).includes(tagF);
+    return matchQ && matchT;
+  });
+
+  // 정렬 적용
+  filtered = [...filtered].sort((a, b) => {
+    if (sortVal === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+    if (sortVal === 'title')  return (a.title||'').localeCompare(b.title||'', 'ko');
+    return new Date(b.created_at) - new Date(a.created_at); // newest (기본)
+  });
+
+  document.getElementById(countId).textContent = filtered.length;
+
+  if (!filtered.length) {
+    document.getElementById(gridId).innerHTML =
+      `<div class="insight-no-result">😶 검색 결과가 없습니다.<br><small style="opacity:.6">"${query || tagF}" 에 해당하는 인사이트가 없어요.</small></div>`;
+    return;
+  }
+  document.getElementById(gridId).innerHTML = filtered.map(r => renderInsightCardSb(r, type)).join('');
+}
+
 async function loadInsightsSb(type) {
   const label   = type === 'invest' ? 'investment' : 'blog';
   const gridId  = type === 'invest' ? 'invest-grid'  : 'blog-grid';
@@ -1965,15 +2238,17 @@ async function loadInsightsSb(type) {
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
     const rows = await res.json();
 
+    insightRowsCache[type === 'invest' ? 'invest' : 'blog'] = rows;
     document.getElementById(countId).textContent = rows.length;
     if (type === 'invest') renderInvestStatsSb(rows);
+    renderInsightTagFilters(type, rows);
 
     if (!rows.length) {
       document.getElementById(gridId).innerHTML =
         `<div class="state-box" style="grid-column:1/-1"><div class="emoji">🗂️</div><p>아직 인사이트가 없습니다.<br>"+ 새 인사이트" 버튼을 눌러 추가해보세요.</p></div>`;
       return;
     }
-    document.getElementById(gridId).innerHTML = rows.map(r => renderInsightCardSb(r, type)).join('');
+    filterInsights(type); // 검색/태그 필터 적용해서 렌더
   } catch(e) {
     document.getElementById(gridId).innerHTML =
       `<div class="state-box" style="grid-column:1/-1"><div class="emoji">⚠️</div><p>오류: ${e.message}<br>Supabase URL/Key를 확인하세요.</p></div>`;
@@ -2373,6 +2648,21 @@ function saveAllSettings() {
   setTimeout(closeWorkerModal, 700);
 }
 
+async function resetStockList() {
+  if (!confirm('주식 종목 목록을 기본값으로 초기화할까요?\n편집한 그룹/종목이 모두 사라집니다.')) return;
+  localStorage.removeItem(STOCK_LIST_KEY);
+  // Supabase에서도 삭제
+  const cfg = getSbCfg();
+  if (cfg) {
+    try {
+      await fetch(`${cfg.url}/rest/v1/user_settings?key=eq.stock_list`, {
+        method: 'DELETE', headers: sbHeaders(),
+      });
+    } catch(e) {}
+  }
+  location.reload();
+}
+
 function clearSettings() {
   ['cfg-sb-url','cfg-sb-key','cfg-gh-owner','cfg-gh-repo','worker-url-input']
     .forEach(id => document.getElementById(id).value = '');
@@ -2474,15 +2764,25 @@ async function fetchFinanceData() {
     if (goldCache && goldCache.date === today) results['gold'] = goldCache.data;
   }
 
-  // 환율 (USD/KRW) — exchangerate-api 무료
+  // 환율 (USD/KRW) — exchangerate-api 무료, 전일 대비 localStorage 비교
   try {
     const res  = await fetchFinanceWithTimeout('https://open.er-api.com/v6/latest/USD', {}, 6000);
     if (res.ok) {
       const data = await res.json();
       const krw  = data?.rates?.KRW;
       if (krw) {
-        // 전일 대비 변동 없음 (일 1회 업데이트라 chg=0)
-        results['usdkrw'] = {val: krw, chg: 0, closed: false};
+        const today = new Date().toISOString().slice(0, 10);
+        // 오늘 값 저장
+        const krwHistory = JSON.parse(localStorage.getItem('ns_krw_history') || '{}');
+        krwHistory[today] = krw;
+        // 오래된 날짜 정리 (최근 7일만 유지)
+        Object.keys(krwHistory).sort().slice(0, -7).forEach(k => delete krwHistory[k]);
+        localStorage.setItem('ns_krw_history', JSON.stringify(krwHistory));
+        // 전일 값 찾기 (오늘 제외 가장 최근)
+        const prevDate = Object.keys(krwHistory).sort().filter(d => d < today).slice(-1)[0];
+        const prevKrw  = prevDate ? krwHistory[prevDate] : null;
+        const chg = prevKrw ? ((krw - prevKrw) / prevKrw * 100) : 0;
+        results['usdkrw'] = {val: krw, chg, closed: false};
       }
     }
   } catch(e) { console.warn('[USD/KRW] 실패:', e.message); }
@@ -2663,10 +2963,58 @@ function initApp() {
   }
   scheduleFinance(); // 금융 대시보드
   loadAllNews();
+  // Supabase 설정 동기화 (비동기 — UI 블로킹 없이 백그라운드 실행)
+  syncSettingsFromSb();
+}
+
+async function syncSettingsFromSb() {
+  if (!getSbCfg()) return; // Supabase 미연결이면 스킵
+  try {
+    const [stockUpdated, guUpdated] = await Promise.all([
+      syncStockListFromSb(),
+      syncTodayGuFromSb(),
+    ]);
+    if (stockUpdated) {
+      // 주식 탭이 열려있으면 재렌더
+      const tab = currentStockTab;
+      const list = STOCK_LIST[tab];
+      const data = list.map(s => stockDataCache[s.code]?.data || null);
+      renderStockGroups(tab, list, data);
+    }
+    if (stockUpdated || guUpdated) {
+      console.log('[설정 동기화] Supabase에서 최신 설정 로드 완료');
+    }
+  } catch(e) { console.warn('[설정 동기화] 실패:', e); }
 }
 
 /* ══ 오늘의 신규거래 ════════════════════════════════════════ */
-const TODAY_GU = [
+// 서울시 25개 자치구 전체 목록
+const ALL_GU_LIST = [
+  {code:'11110', name:'종로구'}, {code:'11140', name:'중구'},
+  {code:'11170', name:'용산구'}, {code:'11200', name:'성동구'},
+  {code:'11215', name:'광진구'}, {code:'11230', name:'동대문구'},
+  {code:'11260', name:'중랑구'}, {code:'11290', name:'성북구'},
+  {code:'11305', name:'강북구'}, {code:'11320', name:'도봉구'},
+  {code:'11350', name:'노원구'}, {code:'11380', name:'은평구'},
+  {code:'11410', name:'서대문구'},{code:'11440', name:'마포구'},
+  {code:'11470', name:'양천구'}, {code:'11500', name:'강서구'},
+  {code:'11530', name:'구로구'}, {code:'11545', name:'금천구'},
+  {code:'11560', name:'영등포구'},{code:'11590', name:'동작구'},
+  {code:'11620', name:'관악구'}, {code:'11650', name:'서초구'},
+  {code:'11680', name:'강남구'}, {code:'11710', name:'송파구'},
+  {code:'11740', name:'강동구'},
+];
+
+// 자치구 색상 팔레트 (순환 배정)
+const GU_COLOR_PALETTE = [
+  '#4f8aff','#27c97a','#f5a623','#a78bfa',
+  '#fb923c','#f87171','#38bdf8','#34d399',
+];
+
+const TODAY_GU_KEY = 'ns_today_gu';
+
+// 기본 자치구 목록
+const TODAY_GU_DEFAULT = [
   {code:'11215', name:'광진구', color:'#4f8aff'},
   {code:'11200', name:'성동구', color:'#27c97a'},
   {code:'11680', name:'강남구', color:'#f5a623'},
@@ -2675,8 +3023,114 @@ const TODAY_GU = [
   {code:'11620', name:'관악구', color:'#f87171'},
 ];
 
+function loadTodayGu() {
+  // 동기 버전: localStorage에서 즉시 로드
+  try {
+    const saved = JSON.parse(localStorage.getItem(TODAY_GU_KEY) || 'null');
+    if (saved?.length) return saved;
+  } catch(e) {}
+  return TODAY_GU_DEFAULT.map(g => ({...g}));
+}
+
+async function syncTodayGuFromSb() {
+  const saved = await sbLoadSetting('today_gu');
+  if (saved?.length) {
+    TODAY_GU = saved;
+    try { localStorage.setItem(TODAY_GU_KEY, JSON.stringify(saved)); } catch(e) {}
+    initTodayTabs(); // 탭 UI 갱신
+    return true;
+  }
+  return false;
+}
+
+function saveTodayGu(list) {
+  // localStorage 항상 저장 (오프라인 폴백)
+  try { localStorage.setItem(TODAY_GU_KEY, JSON.stringify(list)); } catch(e) {}
+  // Supabase 동기화
+  sbSaveSetting('today_gu', list).catch(() => {});
+}
+
+let TODAY_GU = loadTodayGu();
+
 let todayActiveGu   = null;
 let todayTradesCache = {};  // {code: {ts, trades}}
+
+/* ── 자치구 편집 모달 ────────────────────────────────────── */
+let guEditTemp = []; // 편집 중 임시 목록
+
+function openGuEditModal() {
+  guEditTemp = TODAY_GU.map(g => ({...g}));
+  renderGuSelectGrid();
+  renderGuOrderList();
+  document.getElementById('gu-edit-modal-bg').classList.add('open');
+}
+
+function closeGuEditModal(e) {
+  if (e && e.target !== document.getElementById('gu-edit-modal-bg')) return;
+  document.getElementById('gu-edit-modal-bg').classList.remove('open');
+}
+
+function renderGuSelectGrid() {
+  const selectedCodes = new Set(guEditTemp.map(g => g.code));
+  document.getElementById('gu-select-grid').innerHTML = ALL_GU_LIST.map(gu => `
+    <div class="gu-select-item ${selectedCodes.has(gu.code) ? 'selected' : ''}"
+      onclick="toggleGuSelect('${gu.code}','${gu.name}')">${gu.name}</div>
+  `).join('');
+}
+
+function renderGuOrderList() {
+  document.getElementById('gu-order-list').innerHTML = guEditTemp.length
+    ? guEditTemp.map((g, i) => `
+      <div class="gu-order-item">
+        <span>${g.name}</span>
+        <div class="sem-order-btns">
+          <button class="sem-order-btn" onclick="guOrderMove(${i},-1)" ${i===0?'disabled':''}>▲</button>
+          <button class="sem-order-btn" onclick="guOrderMove(${i},+1)" ${i===guEditTemp.length-1?'disabled':''}>▼</button>
+          <button class="sem-order-btn" onclick="guOrderRemove(${i})" style="color:var(--red);">✕</button>
+        </div>
+      </div>`)
+    .join('')
+    : '<div style="color:var(--dim);font-size:12px;padding:8px 0;">위에서 자치구를 선택하세요.</div>';
+}
+
+function toggleGuSelect(code, name) {
+  const idx = guEditTemp.findIndex(g => g.code === code);
+  if (idx >= 0) {
+    guEditTemp.splice(idx, 1);
+  } else {
+    if (guEditTemp.length >= 8) { showToast('최대 8개까지 선택할 수 있어요.'); return; }
+    const color = GU_COLOR_PALETTE[guEditTemp.length % GU_COLOR_PALETTE.length];
+    guEditTemp.push({code, name, color});
+  }
+  renderGuSelectGrid();
+  renderGuOrderList();
+}
+
+function guOrderMove(idx, dir) {
+  const ni = idx + dir;
+  if (ni < 0 || ni >= guEditTemp.length) return;
+  [guEditTemp[idx], guEditTemp[ni]] = [guEditTemp[ni], guEditTemp[idx]];
+  renderGuOrderList();
+}
+
+function guOrderRemove(idx) {
+  guEditTemp.splice(idx, 1);
+  renderGuSelectGrid();
+  renderGuOrderList();
+}
+
+function saveGuEdit() {
+  if (!guEditTemp.length) { showToast('최소 1개 이상 선택해주세요.'); return; }
+  TODAY_GU = guEditTemp.map(g => ({...g}));
+  saveTodayGu(TODAY_GU);
+  todayTradesCache = {}; // 캐시 초기화
+  todayActiveGu = null;
+  initTodayTabs();
+  document.getElementById('re-today-list').innerHTML =
+    '<div class="re-loading">자치구 탭을 클릭하면 최신 거래가 표시됩니다.</div>';
+  document.getElementById('gu-edit-modal-bg').classList.remove('open');
+  showToast('자치구 목록이 저장됐어요.');
+}
 
 function initTodayTabs() {
   const wrap = document.getElementById('re-today-tabs');
@@ -2877,6 +3331,42 @@ const STOCK_LIST = {
   ],
 };
 
+/* ── STOCK_LIST localStorage 저장/로드 ──────────────────── */
+const STOCK_LIST_KEY = 'ns_stock_list';
+
+function saveStockList() {
+  const data = {kr: STOCK_LIST.kr, us: STOCK_LIST.us};
+  // localStorage 항상 저장 (오프라인 폴백)
+  try { localStorage.setItem(STOCK_LIST_KEY, JSON.stringify(data)); } catch(e) {}
+  // Supabase 동기화 (연결된 경우)
+  sbSaveSetting('stock_list', data).catch(() => {});
+}
+
+function loadStockListLocal() {
+  // localStorage에서 즉시 로드 (동기, 앱 시작 시 사용)
+  try {
+    const saved = JSON.parse(localStorage.getItem(STOCK_LIST_KEY) || 'null');
+    if (saved?.kr?.length) STOCK_LIST.kr = saved.kr;
+    if (saved?.us?.length) STOCK_LIST.us = saved.us;
+  } catch(e) { console.warn('STOCK_LIST 로컬 로드 실패:', e); }
+}
+
+async function syncStockListFromSb() {
+  // Supabase에서 최신 데이터 로드 후 STOCK_LIST 갱신
+  const saved = await sbLoadSetting('stock_list');
+  if (saved?.kr?.length || saved?.us?.length) {
+    if (saved.kr?.length) STOCK_LIST.kr = saved.kr;
+    if (saved.us?.length) STOCK_LIST.us = saved.us;
+    // localStorage도 최신으로 업데이트
+    try { localStorage.setItem(STOCK_LIST_KEY, JSON.stringify(saved)); } catch(e) {}
+    return true;
+  }
+  return false;
+}
+
+// 앱 시작 시 localStorage에서 즉시 복원 (Supabase는 initApp에서 비동기 동기화)
+loadStockListLocal();
+
 /* ── 상태 ────────────────────────────────────────────────── */
 let currentStockTab  = 'kr';
 let stockDataCache   = {};
@@ -3074,8 +3564,10 @@ function renderStockGroups(tab, list, dataArr) {
       const fmtP   = /^\d{6}$/.test(stock.code)
         ? d.price?.toLocaleString('ko-KR')
         : '$'+d.price?.toFixed(2);
-      return `<tr>
-        <td class="stock-name-cell">${d.name||stock.name}</td>
+      const yahooSymbol = /^\d{6}$/.test(stock.code) ? stock.code+'.KS' : stock.code;
+      const yahooUrl = `https://finance.yahoo.com/chart/${encodeURIComponent(yahooSymbol)}`;
+      return `<tr style="cursor:pointer;" onclick="window.open('${yahooUrl}','_blank')">
+        <td class="stock-name-cell" title="Yahoo Finance에서 차트 보기">${d.name||stock.name} <span style="font-size:9px;color:var(--muted);margin-left:2px;">↗</span></td>
         <td class="stock-code-cell">${stock.code}</td>
         <td class="${chgCls}" style="font-family:var(--font-mono);font-weight:600;">${fmtP||'–'}<br><span style="font-size:10px;">${chgStr}</span></td>
         <td>${sig(getMaSignal(d.price,d.sma20,d.sma60))}</td>
@@ -3128,7 +3620,57 @@ function renderStockGroups(tab, list, dataArr) {
   // 새 그룹 추가 버튼
   html += `<button class="stock-add-group-btn" onclick="openAddGroupModal('${tab}')">＋ 새 그룹 추가</button>`;
 
-  wrap.innerHTML = html;
+  // 모바일 카드뷰 HTML 생성
+  let mobileHtml = '';
+  groupOrder.forEach(groupName => {
+    const items = groups[groupName];
+    const key2   = `${tab}_${groupName}`;
+    const folded2 = groupFoldState[key2] ?? false;
+    const scores2 = items.map(i=>i.data?.score).filter(s=>s!=null);
+    const avg2    = scores2.length ? Math.round(scores2.reduce((a,b)=>a+b,0)/scores2.length) : null;
+    const scoreC2 = avg2>=70?'var(--green)':avg2>=50?'var(--accent2)':'var(--red)';
+    const cards   = items.map(({stock, data:d}) => {
+      if (!d) return `<div class="stock-mobile-card"><span class="stock-mobile-name">${stock.name}</span><span style="font-size:11px;color:var(--red);">데이터 없음</span></div>`;
+      const chgCls2 = d.chgPct>0?'var(--red)':d.chgPct<0?'var(--accent)':'var(--dim)';
+      const chgStr2 = (d.chgPct>=0?'▲':'▼')+Math.abs(d.chgPct).toFixed(2)+'%';
+      const fmtP2   = /^\d{6}$/.test(stock.code) ? d.price?.toLocaleString('ko-KR') : '$'+d.price?.toFixed(2);
+      const yahooSym2 = /^\d{6}$/.test(stock.code) ? stock.code+'.KS' : stock.code;
+      const sigs = [getMaSignal(d.price,d.sma20,d.sma60), getRsiSignal(d.rsi), getMacdSignal(d.macd)].filter(Boolean);
+      return `<div class="stock-mobile-card" onclick="window.open('https://finance.yahoo.com/chart/${encodeURIComponent(yahooSym2)}','_blank')">
+        <div class="stock-mobile-top">
+          <span class="stock-mobile-name">${d.name||stock.name} <span style="font-size:9px;color:var(--muted);">↗</span></span>
+          <div style="text-align:right;">
+            <div class="stock-mobile-price" style="color:${chgCls2};">${fmtP2||'–'}</div>
+            <div class="stock-mobile-chg" style="color:${chgCls2};">${chgStr2}</div>
+          </div>
+        </div>
+        <div class="stock-mobile-row">
+          ${sigs.map(s=>`<span class="sig ${s.cls}">${s.label}</span>`).join('')}
+          ${d.rsi!=null?`<span class="stock-mobile-badge">RSI ${d.rsi}</span>`:''}
+          ${d.score!=null?`<span class="stock-mobile-badge" style="color:${d.score>=70?'var(--green)':d.score>=50?'var(--accent2)':'var(--red)'};">★ ${d.score}점</span>`:''}
+        </div>
+        <div class="stock-mobile-bottom">
+          <span class="stock-mobile-code">${stock.code}</span>
+          ${stock.isDividend?'<span class="div-badge">배당</span>':''}
+        </div>
+      </div>`;
+    }).join('');
+    mobileHtml += `
+    <div>
+      <div class="stock-mobile-group-hd" onclick="toggleStockGroup('${key2}')">
+        <span>▶ ${groupName} <span style="color:var(--muted);font-weight:400;">${items.length}종목</span></span>
+        ${avg2!=null?`<span style="color:${scoreC2};font-family:var(--font-mono);">평균 ${avg2}점</span>`:''}
+      </div>
+      <div class="stock-mobile-cards" id="mbody-${key2}" style="${folded2?'display:none':''}">
+        ${cards}
+      </div>
+    </div>`;
+  });
+  mobileHtml += `<button class="stock-add-group-btn" onclick="openAddGroupModal('${tab}')">＋ 새 그룹 추가</button>`;
+
+  wrap.innerHTML = `
+    <div class="stock-table-view">${html}</div>
+    <div class="stock-card-view">${mobileHtml}</div>`;
 }
 
 /* ── 정렬 헬퍼 ───────────────────────────────────────────── */
@@ -3238,6 +3780,7 @@ function semSaveGroupName() {
     document.getElementById('sem-title').textContent = `✏️ "${newName}" 그룹 편집`;
   }
   semRerender();
+  saveStockList();
   showToast(`그룹명이 "${newName}"으로 저장됐어요.`);
 }
 
@@ -3260,8 +3803,22 @@ function semAddStock() {
   document.getElementById('sem-add-code').value = '';
   document.getElementById('sem-add-dividend').checked = false;
   semRenderStockList();
-  semRerender();
-  showToast(`${name}(${code}) 종목이 추가됐어요.`);
+  semRerender(); // 일단 "데이터 없음" 상태로 즉시 렌더
+  saveStockList();
+  showToast(`${name}(${code}) 불러오는 중…`);
+
+  // 새 종목 데이터 즉시 fetch → 완료 후 재렌더
+  fetchStockQuote(entry).then(data => {
+    if (data) {
+      stockDataCache[code] = {ts: Date.now(), data};
+      semRerender();
+      showToast(`${name}(${code}) 데이터 로드 완료!`);
+    } else {
+      showToast(`${name}(${code}) 추가됨 (데이터 조회 실패)`);
+    }
+  }).catch(() => {
+    showToast(`${name}(${code}) 추가됨 (데이터 조회 실패)`);
+  });
 }
 
 function semDeleteStock(code) {
@@ -3271,6 +3828,7 @@ function semDeleteStock(code) {
   delete stockDataCache[code];
   semRenderStockList();
   semRerender();
+  saveStockList();
 }
 
 function semDeleteGroup() {
@@ -3279,6 +3837,7 @@ function semDeleteGroup() {
   STOCK_LIST[semCurrentTab] = STOCK_LIST[semCurrentTab].filter(s => s.group !== semCurrentGroup);
   document.getElementById('stock-edit-modal-bg').classList.remove('open');
   semRerender();
+  saveStockList();
   showToast(`"${semCurrentGroup}" 그룹이 삭제됐어요.`);
 }
 
@@ -3346,6 +3905,7 @@ function somMove(tab, idx, dir) {
   // 모달 리렌더 + 메인 리렌더
   somRenderList(tab);
   semRerender();
+  saveStockList();
 }
 
 function showToast(msg) {
@@ -3840,25 +4400,114 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
 
 function renderPriceChart(trades) {
   if (trades.length < 2) return '<div style="color:var(--dim);font-size:12px;text-align:center;padding:20px;">데이터 부족</div>';
-  const W=460,H=130,PAD=40;
-  const prices=trades.map(t=>t.amount), minP=Math.min(...prices), maxP=Math.max(...prices), range=maxP-minP||1;
-  const toX=i=>PAD+(i/(trades.length-1))*(W-PAD*2);
-  const toY=p=>PAD+(1-(p-minP)/range)*(H-PAD*2);
-  const linePts=trades.map((t,i)=>`${toX(i)},${toY(t.amount)}`).join(' ');
-  const areaPts=`${toX(0)},${H} ${linePts} ${toX(trades.length-1)},${H}`;
-  const gridLines=[0,0.5,1].map(r=>{const y=PAD+r*(H-PAD*2),v=maxP-r*range;
-    return `<line x1="${PAD}" y1="${y}" x2="${W-PAD}" y2="${y}" stroke="var(--border)" stroke-width=".5"/>
-            <text x="${PAD-5}" y="${y+4}" text-anchor="end" font-size="8" fill="var(--muted)">${fmtPrice(v)}</text>`;}).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:130px;">
-    <defs><linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="var(--accent)" stop-opacity=".3"/>
-      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
-    </linearGradient></defs>
-    ${gridLines}
-    <polygon points="${areaPts}" fill="url(#rg)"/>
-    <polyline points="${linePts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/>
-    ${trades.map((t,i)=>`<circle cx="${toX(i)}" cy="${toY(t.amount)}" r="2.5" fill="var(--accent)"/>`).join('')}
-  </svg>`;
+
+  // 평형별 색상 분리
+  const PYEONG_COLORS = ['#4f8aff','#f5a623','#27c97a','#a78bfa','#fb923c','#f87171','#38bdf8','#34d399'];
+  const pyeongSet = [...new Set(trades.map(t => Math.round(t.area/3.3)+'평'))].sort((a,b)=>parseInt(a)-parseInt(b));
+  const colorMap  = {};
+  pyeongSet.forEach((py, i) => { colorMap[py] = PYEONG_COLORS[i % PYEONG_COLORS.length]; });
+
+  const W=480, H=160, PADL=46, PADR=12, PADT=14, PADB=24;
+  const innerW = W-PADL-PADR, innerH = H-PADT-PADB;
+  const prices  = trades.map(t=>t.amount);
+  const minP    = Math.min(...prices), maxP = Math.max(...prices), range = maxP-minP||1;
+  const toX     = i => PADL + (i/(trades.length-1)) * innerW;
+  const toY     = p => PADT + (1-(p-minP)/range) * innerH;
+
+  // 그리드 라인 (3개)
+  const gridLines = [0, 0.5, 1].map(r => {
+    const y = PADT + r * innerH;
+    const v = maxP - r * range;
+    return `<line x1="${PADL}" y1="${y}" x2="${W-PADR}" y2="${y}" stroke="var(--border)" stroke-width=".6" stroke-dasharray="3,3"/>
+            <text x="${PADL-5}" y="${y+4}" text-anchor="end" font-size="9" fill="var(--muted)">${fmtPrice(v)}</text>`;
+  }).join('');
+
+  // X축 날짜 레이블 (최대 5개)
+  const step   = Math.max(1, Math.floor(trades.length / 5));
+  const xLabels = trades.map((t, i) => {
+    if (i % step !== 0 && i !== trades.length-1) return '';
+    const d = t.dealDate;
+    const label = `${d.slice(4,6)}.${d.slice(6,8)}`;
+    return `<text x="${toX(i)}" y="${H-6}" text-anchor="middle" font-size="8" fill="var(--muted)">${label}</text>`;
+  }).join('');
+
+  // 평형별 라인 + 에리어
+  const seriesSvg = pyeongSet.map(py => {
+    const pts = trades.map((t, i) => ({
+      x: toX(i), y: toY(t.amount), t,
+      active: Math.round(t.area/3.3)+'평' === py,
+    }));
+    const activePts = trades.map((t, i) => Math.round(t.area/3.3)+'평'===py ? {x:toX(i),y:toY(t.amount),t} : null).filter(Boolean);
+    if (!activePts.length) return '';
+    const color = colorMap[py];
+    // 단일 평형이면 에리어도 그림
+    const linePts2 = activePts.map(p=>`${p.x},${p.y}`).join(' ');
+    const area2    = pyeongSet.length===1
+      ? `<polygon points="${toX(0)},${H-PADB} ${linePts2} ${toX(trades.length-1)},${H-PADB}" fill="${color}" fill-opacity=".12"/>`
+      : '';
+    const circles  = activePts.map(p =>
+      `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${color}" stroke="var(--panel)" stroke-width="1.2">
+        <title>${p.t.dealDate.slice(0,4)}.${p.t.dealDate.slice(4,6)}.${p.t.dealDate.slice(6,8)} · ${py} · ${fmtPrice(p.t.amount)}</title>
+      </circle>`).join('');
+    return `${area2}
+      <polyline points="${linePts2}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>
+      ${circles}`;
+  }).join('');
+
+  // 범례 (2개 이상 평형일 때만)
+  const legend = pyeongSet.length > 1
+    ? `<g transform="translate(${PADL}, ${PADT-2})">` +
+      pyeongSet.map((py, i) =>
+        `<rect x="${i*52}" y="-7" width="8" height="8" rx="2" fill="${colorMap[py]}"/>
+         <text x="${i*52+11}" y="0" font-size="8" fill="var(--dim)">${py}</text>`).join('') +
+      '</g>'
+    : '';
+
+  // 호버 인터랙션용 투명 rect (JS 이벤트로 툴팁)
+  const hoverRects = trades.map((t, i) => {
+    const x   = toX(i);
+    const py  = Math.round(t.area/3.3)+'평';
+    const col = colorMap[py] || '#4f8aff';
+    const d   = t.dealDate;
+    const tip = `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)} · ${py} · ${fmtPrice(t.amount)}`;
+    return `<rect x="${x-8}" y="${PADT}" width="16" height="${innerH}" fill="transparent"
+      onmouseenter="showChartTip(this,'${tip}','${col}')"
+      onmouseleave="hideChartTip()"
+      style="cursor:crosshair;"/>`;
+  }).join('');
+
+  return `
+  <div style="position:relative;">
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:160px;overflow:visible;">
+      <defs>
+        <clipPath id="chartClip"><rect x="${PADL}" y="${PADT}" width="${innerW}" height="${innerH}"/></clipPath>
+      </defs>
+      ${gridLines}
+      ${xLabels}
+      <g clip-path="url(#chartClip)">${seriesSvg}</g>
+      ${legend}
+      ${hoverRects}
+    </svg>
+    <div id="chart-tooltip" style="
+      display:none;position:absolute;top:0;left:50%;transform:translateX(-50%);
+      background:var(--panel);border:1px solid var(--border);border-radius:6px;
+      padding:4px 10px;font-size:11px;font-weight:600;color:var(--bright);
+      white-space:nowrap;pointer-events:none;box-shadow:var(--shadow);z-index:10;
+    "></div>
+  </div>`;
+}
+
+function showChartTip(el, text, color) {
+  const tip = document.getElementById('chart-tooltip');
+  if (!tip) return;
+  tip.textContent = text;
+  tip.style.display = 'block';
+  tip.style.borderColor = color;
+  tip.style.color = color;
+}
+function hideChartTip() {
+  const tip = document.getElementById('chart-tooltip');
+  if (tip) tip.style.display = 'none';
 }
 
 function setRePeriod(p) {
