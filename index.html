@@ -594,6 +594,74 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .rsi-bar{height:100%;border-radius:2px;transition:width .5s ease;}
 .div-badge{background:rgba(245,166,35,.12);color:var(--accent2);border:1px solid rgba(245,166,35,.25);border-radius:4px;font-size:10px;font-weight:700;padding:1px 6px;}
 .stock-panel-inner{overflow-x:auto;}
+
+/* ─── 주식 편집 UI ───────────────────────────────────────── */
+.stock-edit-btn{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:3px 9px;border-radius:4px;font-size:10px;font-weight:600;
+  background:var(--tag-bg);color:var(--dim);border:1px solid var(--border);
+  cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;margin-left:8px;
+}
+.stock-edit-btn:hover{background:rgba(79,138,255,.12);color:var(--accent);border-color:rgba(79,138,255,.35);}
+.stock-add-group-btn{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  width:100%;padding:10px;margin-top:6px;border-radius:8px;
+  border:1.5px dashed var(--border);background:none;
+  color:var(--dim);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;
+}
+.stock-add-group-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(79,138,255,.05);}
+.stock-edit-modal-bg{
+  display:none;position:fixed;inset:0;z-index:300;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;
+}
+.stock-edit-modal-bg.open{display:flex;}
+.stock-edit-modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:24px;width:min(480px,92vw);max-height:80vh;overflow-y:auto;
+  box-shadow:0 8px 32px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:16px;
+}
+.sem-title{font-size:14px;font-weight:700;color:var(--bright);}
+.sem-section{display:flex;flex-direction:column;gap:8px;}
+.sem-label{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;}
+.sem-row{display:flex;gap:8px;align-items:center;}
+.sem-input{
+  flex:1;padding:8px 12px;border-radius:7px;border:1px solid var(--border);
+  background:var(--panel);color:var(--bright);font-size:13px;
+  font-family:var(--font-body);outline:none;transition:border-color .15s;
+}
+.sem-input:focus{border-color:var(--accent);}
+.sem-btn{padding:7px 14px;border-radius:7px;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;}
+.sem-btn-primary{background:var(--accent);color:#fff;}
+.sem-btn-primary:hover{opacity:.85;}
+.sem-btn-danger{background:rgba(255,90,90,.15);color:var(--red);border:1px solid rgba(255,90,90,.3);}
+.sem-btn-danger:hover{background:rgba(255,90,90,.25);}
+.sem-btn-ghost{background:var(--tag-bg);color:var(--dim);border:1px solid var(--border);}
+.sem-btn-ghost:hover{color:var(--text);border-color:var(--muted);}
+.sem-stock-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;}
+.sem-stock-item{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel);border:1px solid var(--border);border-radius:7px;}
+.sem-stock-name{flex:1;font-size:12px;font-weight:600;color:var(--bright);}
+.sem-stock-code{font-family:var(--font-mono);font-size:10px;color:var(--dim);margin-right:4px;}
+.sem-stock-del{padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(255,90,90,.1);color:var(--red);border:1px solid rgba(255,90,90,.2);cursor:pointer;transition:all .15s;flex-shrink:0;}
+.sem-stock-del:hover{background:rgba(255,90,90,.22);}
+.sem-divider{height:1px;background:var(--border);margin:2px 0;}
+.sem-checkbox-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);}
+.sem-checkbox-row input{accent-color:var(--accent2);width:14px;height:14px;}
+.sem-order-item{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  background:var(--panel);border:1px solid var(--border);border-radius:7px;
+  font-size:13px;font-weight:600;color:var(--bright);
+}
+.sem-order-item .sem-order-name{flex:1;}
+.sem-order-btns{display:flex;gap:4px;}
+.sem-order-btn{
+  width:26px;height:26px;border-radius:5px;border:1px solid var(--border);
+  background:var(--tag-bg);color:var(--dim);font-size:12px;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;
+}
+.sem-order-btn:hover:not(:disabled){background:rgba(79,138,255,.12);color:var(--accent);border-color:rgba(79,138,255,.35);}
+.sem-order-btn:disabled{opacity:.25;cursor:default;}
+
 .re-layout{display:grid;grid-template-columns:480px 1fr;gap:20px;min-height:680px;}
 @media(max-width:1000px){.re-layout{grid-template-columns:1fr;}}
 .re-map-wrap{
@@ -922,6 +990,71 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   </div>
 </section>
 
+<!-- ══ 주식 그룹/종목 편집 모달 ══════════════════════════════ -->
+<div class="stock-edit-modal-bg" id="stock-edit-modal-bg" onclick="closeStockEditModal(event)">
+  <div class="stock-edit-modal" id="stock-edit-modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span class="sem-title" id="sem-title">그룹 편집</span>
+      <button class="sem-btn sem-btn-ghost" onclick="closeStockEditModal()" style="padding:4px 10px;">✕</button>
+    </div>
+
+    <!-- 그룹명 편집 -->
+    <div class="sem-section" id="sem-group-name-section">
+      <div class="sem-label">그룹명</div>
+      <div class="sem-row">
+        <input class="sem-input" id="sem-group-name-input" placeholder="그룹명 입력" maxlength="20">
+        <button class="sem-btn sem-btn-primary" onclick="semSaveGroupName()">저장</button>
+      </div>
+    </div>
+
+    <div class="sem-divider"></div>
+
+    <!-- 종목 목록 -->
+    <div class="sem-section">
+      <div class="sem-label">종목 목록</div>
+      <div class="sem-stock-list" id="sem-stock-list"></div>
+    </div>
+
+    <!-- 종목 추가 -->
+    <div class="sem-section">
+      <div class="sem-label">종목 추가</div>
+      <div class="sem-row">
+        <input class="sem-input" id="sem-add-name" placeholder="종목명 (예: 삼성전자)" maxlength="20" style="flex:1.2">
+        <input class="sem-input" id="sem-add-code" placeholder="코드 (예: 005930 또는 AAPL)" maxlength="12" style="flex:1">
+      </div>
+      <div class="sem-row">
+        <label class="sem-checkbox-row"><input type="checkbox" id="sem-add-dividend"> 배당주</label>
+        <button class="sem-btn sem-btn-primary" onclick="semAddStock()" style="margin-left:auto;">+ 종목 추가</button>
+      </div>
+    </div>
+
+    <div class="sem-divider"></div>
+
+    <!-- 그룹 삭제 -->
+    <div class="sem-row" style="justify-content:space-between;">
+      <button class="sem-btn sem-btn-danger" onclick="semDeleteGroup()">🗑 그룹 삭제</button>
+      <button class="sem-btn sem-btn-ghost" onclick="closeStockEditModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 주식 그룹 순서 변경 모달 ════════════════════════════════ -->
+<div class="stock-edit-modal-bg" id="stock-order-modal-bg" onclick="closeStockOrderModal(event)">
+  <div class="stock-edit-modal" id="stock-order-modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span class="sem-title" id="som-title">그룹 순서 변경</span>
+      <button class="sem-btn sem-btn-ghost" onclick="closeStockOrderModal()" style="padding:4px 10px;">✕</button>
+    </div>
+    <div class="sem-section">
+      <div class="sem-label">▲▼ 버튼으로 순서를 조정하세요</div>
+      <div id="som-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+    <div class="sem-row" style="justify-content:flex-end;margin-top:4px;">
+      <button class="sem-btn sem-btn-ghost" onclick="closeStockOrderModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ TAB 3 · 주식 ══════════════════════════════════════════ -->
 <section class="tab-panel" id="tab-stock">
 
@@ -929,7 +1062,8 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   <div class="stock-subtab-bar">
     <button class="stock-subtab active" id="subtab-kr" onclick="switchStockTab('kr')">🇰🇷 국내주식</button>
     <button class="stock-subtab" id="subtab-us" onclick="switchStockTab('us')">🇺🇸 미국주식</button>
-    <button class="re-today-refresh" style="margin-left:auto;" onclick="refreshStockTab()">↺ 새로고침</button>
+    <button class="stock-edit-btn" style="margin-left:auto;padding:6px 12px;font-size:11px;" onclick="openStockOrderModal()">☰ 그룹 순서</button>
+    <button class="re-today-refresh" onclick="refreshStockTab()">↺ 새로고침</button>
   </div>
 
   <!-- 국내 -->
@@ -1871,18 +2005,19 @@ function renderInsightCardSb(row, type) {
         title="삭제">✕</button>
     </div>
     ${body ? `<div class="insight-body">${body}</div>` : ''}
-    ${row.source_url ? `
-    <a href="${row.source_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-      style="
-        display:inline-flex;align-items:center;gap:3px;
-        padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;
-        background:rgba(34,139,80,.18);color:#3a9e60;
-        border:1px solid rgba(34,139,80,.3);
-        text-decoration:none;transition:all .15s;white-space:nowrap;
-      "
-      onmouseover="this.style.background='rgba(34,139,80,.28)'"
-      onmouseout="this.style.background='rgba(34,139,80,.18)'"
-    >↗ 원문</a>` : ''}
+    <div style="display:flex;flex-direction:column;gap:5px;margin-top:2px;">
+      ${row.source_url ? `
+      <a href="${row.source_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+        style="display:inline-flex;align-items:center;gap:3px;align-self:flex-start;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(34,139,80,.18);color:#3a9e60;border:1px solid rgba(34,139,80,.3);text-decoration:none;transition:all .15s;white-space:nowrap;"
+        onmouseover="this.style.background='rgba(34,139,80,.28)'"
+        onmouseout="this.style.background='rgba(34,139,80,.18)'"
+      >↗ 원문</a>` : ''}
+      <a href="https://blog.naver.com/hrninfo" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+        style="display:inline-flex;align-items:center;gap:3px;align-self:flex-start;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(3,199,90,.12);color:#03c75a;border:1px solid rgba(3,199,90,.3);text-decoration:none;transition:all .15s;white-space:nowrap;"
+        onmouseover="this.style.background='rgba(3,199,90,.22)'"
+        onmouseout="this.style.background='rgba(3,199,90,.12)'"
+      >📝 네이버 블로그</a>
+    </div>
     <div class="insight-footer">${tags}<span class="insight-date">${date}</span></div>
   </div>`;
 }
@@ -2583,7 +2718,7 @@ async function loadTodayGuTrades(code) {
   const now       = new Date();
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
 
-  // 이번달 + 전월 두 달치 동시 요청 (월초에도 20일치 확보)
+  // 이번달 + 전월 두 달치 동시 요청 (월초에도 10일치 확보)
   const months = [0, -1].map(offset => {
     const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
     return { year: d.getFullYear(), month: String(d.getMonth()+1).padStart(2,'0') };
@@ -2635,14 +2770,14 @@ function renderTodayTrades(trades, gu) {
     return;
   }
 
-  // 최근 20일치 필터링
+  // 최근 10일치 필터링
   const latestDate = trades[0].dealDate; // 가장 최근 거래일 (YYYYMMDD)
   const latestMs = new Date(
     parseInt(latestDate.slice(0,4)),
     parseInt(latestDate.slice(4,6)) - 1,
     parseInt(latestDate.slice(6,8))
   ).getTime();
-  const cutoffMs = latestMs - (20 * 24 * 60 * 60 * 1000); // 20일 전
+  const cutoffMs = latestMs - (10 * 24 * 60 * 60 * 1000); // 10일 전
 
   const recentTrades = trades.filter(t => {
     const d = new Date(
@@ -2658,7 +2793,7 @@ function renderTodayTrades(trades, gu) {
   const oldestDate = recentTrades[recentTrades.length - 1]?.dealDate || latestDate;
 
   document.getElementById('re-today-desc').textContent =
-    `최근 20일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · ${gu?.name || ''} ${recentTrades.length}건`;
+    `최근 10일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · ${gu?.name || ''} ${recentTrades.length}건`;
 
   list.innerHTML = recentTrades.map(t => `
     <div class="re-trade-card" style="border-left-color:${gu?.color||'var(--accent)'}">
@@ -2866,10 +3001,17 @@ function renderStockGroups(tab, list, dataArr) {
     .filter(s => s.code)
     .map((s,i) => ({stock:s, data:dataArr[list.filter(x=>x.code).indexOf(s)]}));
 
-  // 정렬 (기타 그룹은 항상 마지막)
-  enriched.sort((a,b) => {
-    if (a.stock.group==='기타' && b.stock.group!=='기타') return 1;
-    if (b.stock.group==='기타' && a.stock.group!=='기타') return -1;
+  // 그룹별 분류 — STOCK_LIST 원본 순서 유지 (그룹 순서 고정)
+  const groupOrder = [];
+  const groups = {};
+  enriched.forEach(item => {
+    const g = item.stock.group;
+    if (!groups[g]) { groups[g] = []; groupOrder.push(g); }
+    groups[g].push(item);
+  });
+
+  // 정렬은 그룹 내부에서만
+  const sortItems = (items) => [...items].sort((a,b) => {
     const va = getSortVal(a.data, stockSortCol);
     const vb = getSortVal(b.data, stockSortCol);
     if (va==null && vb==null) return 0;
@@ -2877,19 +3019,12 @@ function renderStockGroups(tab, list, dataArr) {
     if (vb==null) return -1;
     return stockSortDir==='asc' ? va-vb : vb-va;
   });
-
-  // 그룹별 분류
-  const groups = {};
-  enriched.forEach(item => {
-    const g = item.stock.group;
-    if (!groups[g]) groups[g] = [];
-    groups[g].push(item);
-  });
+  groupOrder.forEach(g => { groups[g] = sortItems(groups[g]); });
 
   const tableHeader = `
     <table class="stock-table">
     <colgroup>
-      <col style="min-width:110px"><col style="width:70px"><col style="width:100px">
+      <col style="width:160px"><col style="width:70px"><col style="width:100px">
       <col style="width:70px"><col style="width:90px"><col style="width:80px">
       <col style="width:75px"><col style="width:65px"><col style="width:60px">
       <col style="width:50px"><col style="width:55px"><col style="width:28px">
@@ -2910,7 +3045,7 @@ function renderStockGroups(tab, list, dataArr) {
     </tr></thead></table>`;
 
   let html = '';
-  Object.entries(groups).forEach(([groupName, items]) => {
+  groupOrder.forEach(groupName => { const items = groups[groupName];
     const key    = `${tab}_${groupName}`;
     const folded = groupFoldState[key] ?? false;
     const scores = items.map(i=>i.data?.score).filter(s=>s!=null);
@@ -2954,6 +3089,7 @@ function renderStockGroups(tab, list, dataArr) {
           <span class="stock-group-arrow ${folded?'':'open'}" id="arrow-${key}">▶</span>
           <span>${groupName}</span>
           <span class="stock-group-count">${items.length}종목</span>
+          <button class="stock-edit-btn" onclick="event.stopPropagation();openStockEditModal('${tab}','${groupName}')">✏️ 편집</button>
         </div>
         ${avgScore!=null?`<span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:${scoreC};">평균 ${avgScore}점</span>`:''}
       </div>
@@ -2961,7 +3097,7 @@ function renderStockGroups(tab, list, dataArr) {
         <div style="overflow-x:auto;">
           <table class="stock-table">
           <colgroup>
-            <col style="min-width:110px"><col style="width:70px"><col style="width:100px">
+            <col style="width:160px"><col style="width:70px"><col style="width:100px">
             <col style="width:70px"><col style="width:90px"><col style="width:80px">
             <col style="width:75px"><col style="width:65px"><col style="width:60px">
             <col style="width:50px"><col style="width:55px"><col style="width:28px">
@@ -2978,6 +3114,9 @@ function renderStockGroups(tab, list, dataArr) {
       </div>
     </div>`;
   });
+
+  // 새 그룹 추가 버튼
+  html += `<button class="stock-add-group-btn" onclick="openAddGroupModal('${tab}')">＋ 새 그룹 추가</button>`;
 
   wrap.innerHTML = html;
 }
@@ -3022,6 +3161,195 @@ function toggleStockGroup(key) {
   const fold  = groupFoldState[key];
   if (body)  body.style.maxHeight  = fold ? '0' : '2000px';
   if (arrow) arrow.classList.toggle('open', !fold);
+}
+
+/* ── 그룹/종목 편집 모달 ─────────────────────────────────── */
+let semCurrentTab   = 'kr';
+let semCurrentGroup = '';
+
+function openStockEditModal(tab, groupName) {
+  semCurrentTab   = tab;
+  semCurrentGroup = groupName;
+  const modal = document.getElementById('stock-edit-modal-bg');
+  document.getElementById('sem-title').textContent = `✏️ "${groupName}" 그룹 편집`;
+  document.getElementById('sem-group-name-input').value = groupName;
+  semRenderStockList();
+  modal.classList.add('open');
+}
+
+function openAddGroupModal(tab) {
+  semCurrentTab   = tab;
+  semCurrentGroup = '';
+  const modal = document.getElementById('stock-edit-modal-bg');
+  document.getElementById('sem-title').textContent = '➕ 새 그룹 추가';
+  document.getElementById('sem-group-name-input').value = '';
+  document.getElementById('sem-stock-list').innerHTML =
+    '<div style="color:var(--dim);font-size:12px;padding:8px 0;">그룹명을 먼저 저장하면 종목을 추가할 수 있어요.</div>';
+  modal.classList.add('open');
+}
+
+function closeStockEditModal(e) {
+  if (e && e.target !== document.getElementById('stock-edit-modal-bg')) return;
+  document.getElementById('stock-edit-modal-bg').classList.remove('open');
+}
+
+function semRenderStockList() {
+  const list = STOCK_LIST[semCurrentTab].filter(s => s.group === semCurrentGroup && s.code);
+  const el   = document.getElementById('sem-stock-list');
+  if (!list.length) {
+    el.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:8px 0;">종목이 없습니다.</div>';
+    return;
+  }
+  el.innerHTML = list.map((s, i) => `
+    <div class="sem-stock-item">
+      <span class="sem-stock-name">${s.name}</span>
+      <span class="sem-stock-code">${s.code}</span>
+      ${s.isDividend ? '<span style="font-size:10px;color:var(--accent2);">배당</span>' : ''}
+      <button class="sem-stock-del" onclick="semDeleteStock('${s.code}')">삭제</button>
+    </div>
+  `).join('');
+}
+
+function semSaveGroupName() {
+  const newName = document.getElementById('sem-group-name-input').value.trim();
+  if (!newName) return alert('그룹명을 입력해주세요.');
+  if (semCurrentGroup === '') {
+    // 새 그룹 생성 — 빈 placeholder 항목 추가
+    STOCK_LIST[semCurrentTab].push({group: newName, code:'', name:'', isDividend:false});
+    semCurrentGroup = newName;
+    document.getElementById('sem-title').textContent = `✏️ "${newName}" 그룹 편집`;
+    semRenderStockList();
+  } else if (newName !== semCurrentGroup) {
+    // 기존 그룹명 변경
+    STOCK_LIST[semCurrentTab].forEach(s => {
+      if (s.group === semCurrentGroup) s.group = newName;
+    });
+    semCurrentGroup = newName;
+    document.getElementById('sem-title').textContent = `✏️ "${newName}" 그룹 편집`;
+  }
+  semRerender();
+  showToast(`그룹명이 "${newName}"으로 저장됐어요.`);
+}
+
+function semAddStock() {
+  if (!semCurrentGroup) return alert('먼저 그룹명을 저장해주세요.');
+  const name = document.getElementById('sem-add-name').value.trim();
+  const code = document.getElementById('sem-add-code').value.trim().toUpperCase();
+  const isDividend = document.getElementById('sem-add-dividend').checked;
+  if (!name || !code) return alert('종목명과 코드를 모두 입력해주세요.');
+  if (STOCK_LIST[semCurrentTab].some(s => s.code === code)) return alert('이미 추가된 종목 코드입니다.');
+  // 해당 그룹의 마지막 위치에 삽입 (기타 그룹 빈 항목 바로 앞)
+  const idx = STOCK_LIST[semCurrentTab].findIndex(s => s.group === semCurrentGroup && s.code === '');
+  const entry = {group: semCurrentGroup, code, name, isDividend};
+  if (idx >= 0) {
+    STOCK_LIST[semCurrentTab].splice(idx, 0, entry);
+  } else {
+    STOCK_LIST[semCurrentTab].push(entry);
+  }
+  document.getElementById('sem-add-name').value = '';
+  document.getElementById('sem-add-code').value = '';
+  document.getElementById('sem-add-dividend').checked = false;
+  semRenderStockList();
+  semRerender();
+  showToast(`${name}(${code}) 종목이 추가됐어요.`);
+}
+
+function semDeleteStock(code) {
+  if (!confirm('이 종목을 삭제할까요?')) return;
+  const idx = STOCK_LIST[semCurrentTab].findIndex(s => s.code === code && s.group === semCurrentGroup);
+  if (idx >= 0) STOCK_LIST[semCurrentTab].splice(idx, 1);
+  delete stockDataCache[code];
+  semRenderStockList();
+  semRerender();
+}
+
+function semDeleteGroup() {
+  if (!confirm(`"${semCurrentGroup}" 그룹 전체를 삭제할까요?
+포함된 종목도 모두 삭제됩니다.`)) return;
+  STOCK_LIST[semCurrentTab] = STOCK_LIST[semCurrentTab].filter(s => s.group !== semCurrentGroup);
+  document.getElementById('stock-edit-modal-bg').classList.remove('open');
+  semRerender();
+  showToast(`"${semCurrentGroup}" 그룹이 삭제됐어요.`);
+}
+
+function semRerender() {
+  const tab  = semCurrentTab;
+  const list = STOCK_LIST[tab];
+  const data = list.map(s => stockDataCache[s.code]?.data || null);
+  renderStockGroups(tab, list, data);
+}
+
+function openStockOrderModal() {
+  const tab = currentStockTab;
+  document.getElementById('som-title').textContent =
+    (tab === 'kr' ? '🇰🇷 국내' : '🇺🇸 미국') + ' 그룹 순서 변경';
+  somRenderList(tab);
+  document.getElementById('stock-order-modal-bg').classList.add('open');
+}
+
+function closeStockOrderModal(e) {
+  if (e && e.target !== document.getElementById('stock-order-modal-bg')) return;
+  document.getElementById('stock-order-modal-bg').classList.remove('open');
+}
+
+function somRenderList(tab) {
+  // 현재 그룹 순서 추출 (중복 제거, 빈 코드 그룹 제외)
+  const seen = new Set();
+  const groups = [];
+  STOCK_LIST[tab].forEach(s => {
+    if (s.group && !seen.has(s.group)) { seen.add(s.group); groups.push(s.group); }
+  });
+
+  const el = document.getElementById('som-list');
+  el.innerHTML = groups.map((g, i) => `
+    <div class="sem-order-item" id="som-item-${i}">
+      <span class="sem-order-name">${g}</span>
+      <div class="sem-order-btns">
+        <button class="sem-order-btn" onclick="somMove('${tab}',${i},-1)" ${i===0?'disabled':''} title="위로">▲</button>
+        <button class="sem-order-btn" onclick="somMove('${tab}',${i},+1)" ${i===groups.length-1?'disabled':''} title="아래로">▼</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function somMove(tab, idx, dir) {
+  // 현재 그룹 순서 추출
+  const seen = new Set();
+  const groups = [];
+  STOCK_LIST[tab].forEach(s => {
+    if (s.group && !seen.has(s.group)) { seen.add(s.group); groups.push(s.group); }
+  });
+
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= groups.length) return;
+
+  // 순서 교환
+  [groups[idx], groups[newIdx]] = [groups[newIdx], groups[idx]];
+
+  // STOCK_LIST를 새 그룹 순서대로 재정렬
+  const newList = [];
+  groups.forEach(g => {
+    STOCK_LIST[tab].filter(s => s.group === g).forEach(s => newList.push(s));
+  });
+  STOCK_LIST[tab] = newList;
+
+  // 모달 리렌더 + 메인 리렌더
+  somRenderList(tab);
+  semRerender();
+}
+
+function showToast(msg) {
+  let t = document.getElementById('ns-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'ns-toast';
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);color:var(--bright);font-size:12px;font-weight:600;padding:8px 18px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,.3);z-index:999;transition:opacity .3s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2500);
 }
 
 /* ── 매크로 지표 ─────────────────────────────────────────── */
