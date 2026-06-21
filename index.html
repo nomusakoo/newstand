@@ -1149,7 +1149,10 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <!-- 그룹 삭제 -->
     <div class="sem-row" style="justify-content:space-between;">
       <button class="sem-btn sem-btn-danger" onclick="semDeleteGroup()">🗑 그룹 삭제</button>
-      <button class="sem-btn sem-btn-ghost" onclick="closeStockEditModal()">닫기</button>
+      <div style="display:flex;gap:8px;">
+        <button class="sem-btn sem-btn-ghost" onclick="semFetchGroup()" title="이 그룹 종목 데이터 다시 불러오기">↺ 데이터 새로고침</button>
+        <button class="sem-btn sem-btn-ghost" onclick="closeStockEditModal()">닫기</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3436,7 +3439,10 @@ async function fetchStockQuote(stock) {
     data.score = calcStockScore(data);
     stockDataCache[stock.code] = {ts:Date.now(), data};
     return data;
-  } catch(e) { return null; }
+  } catch(e) {
+    console.warn(`[fetchStockQuote] ${stock.code} 실패:`, e.message);
+    return null;
+  }
 }
 
 /* ── 기술 지표 계산 ──────────────────────────────────────── */
@@ -3740,6 +3746,36 @@ function openAddGroupModal(tab) {
   modal.classList.add('open');
 }
 
+async function semFetchGroup() {
+  const tab   = semCurrentTab;
+  const group = semCurrentGroup;
+  const stocks = STOCK_LIST[tab].filter(s => s.group === group && s.code);
+  if (!stocks.length) { showToast('종목이 없습니다.'); return; }
+
+  showToast(`${group} 그룹 데이터 불러오는 중… (${stocks.length}종목)`);
+
+  // 캐시 무효화 후 병렬 fetch
+  stocks.forEach(s => delete stockDataCache[s.code]);
+  const results = await Promise.allSettled(stocks.map(s => fetchStockQuote(s)));
+
+  let ok = 0, fail = 0;
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) {
+      stockDataCache[stocks[i].code] = {ts: Date.now(), data: r.value};
+      ok++;
+    } else {
+      fail++;
+    }
+  });
+
+  semRerender();
+  if (fail === 0) {
+    showToast(`✅ ${group} 데이터 로드 완료 (${ok}종목)`);
+  } else {
+    showToast(`⚠️ ${ok}종목 성공 / ${fail}종목 실패 — Worker 설정 확인`);
+  }
+}
+
 function closeStockEditModal(e) {
   if (e && e.target !== document.getElementById('stock-edit-modal-bg')) return;
   document.getElementById('stock-edit-modal-bg').classList.remove('open');
@@ -3808,17 +3844,20 @@ function semAddStock() {
   showToast(`${name}(${code}) 불러오는 중…`);
 
   // 새 종목 데이터 즉시 fetch → 완료 후 재렌더
-  fetchStockQuote(entry).then(data => {
-    if (data) {
-      stockDataCache[code] = {ts: Date.now(), data};
-      semRerender();
-      showToast(`${name}(${code}) 데이터 로드 완료!`);
-    } else {
-      showToast(`${name}(${code}) 추가됨 (데이터 조회 실패)`);
+  (async () => {
+    try {
+      const data = await fetchStockQuote(entry);
+      if (data) {
+        stockDataCache[code] = {ts: Date.now(), data};
+        semRerender();
+        showToast(`${name}(${code}) ✅ 데이터 로드 완료!`);
+      } else {
+        showToast(`⚠️ ${name}(${code}) 데이터 없음 — 코드 확인 또는 새로고침 해주세요`);
+      }
+    } catch(e) {
+      showToast(`⚠️ ${name}(${code}) fetch 실패: ${e.message}`);
     }
-  }).catch(() => {
-    showToast(`${name}(${code}) 추가됨 (데이터 조회 실패)`);
-  });
+  })();
 }
 
 function semDeleteStock(code) {
