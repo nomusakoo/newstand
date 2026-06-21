@@ -1472,7 +1472,8 @@ document.querySelectorAll('.tab-btn,.bnav-btn').forEach(btn => {
    예) https://rss-proxy.홍길동.workers.dev
    미설정 시 폴백(AllOrigins → corsproxy)으로 동작합니다.
 ──────────────────────────────────────────────────────────── */
-const WORKER_URL = localStorage.getItem('ns_worker_url') || '';
+// WORKER_URL: 매 호출마다 localStorage에서 읽어야 설정 저장 즉시 반영됨
+const getWorkerUrl = () => localStorage.getItem('ns_worker_url') || '';
 
 function parseXmlItems(xml) {
   const doc   = new DOMParser().parseFromString(xml, 'text/xml');
@@ -1507,6 +1508,7 @@ function fetchWithTimeout(url, options = {}, ms = 6000) {
 
 /* 1순위: 내 Cloudflare Worker (무제한 + 엣지 캐시) */
 async function fetchViaWorker(url) {
+  const WORKER_URL = getWorkerUrl();
   if (!WORKER_URL) throw new Error('Worker URL 미설정');
   // Worker는 엣지에서 응답하므로 타임아웃을 넉넉하게
   const endpoint = `${WORKER_URL}?url=${encodeURIComponent(url)}`;
@@ -1557,7 +1559,7 @@ async function fetchFeed(feed, forceRefresh = false) {
   };
 
   // Worker 설정 시 → Worker 먼저, 실패 시 병렬 폴백
-  if (WORKER_URL) {
+  if (getWorkerUrl()) {
     try {
       const items = await fetchViaWorker(feed.url);
       if (items.length) return save(items);
@@ -1676,13 +1678,24 @@ function renderNews() {
   document.getElementById('news-count').textContent = topN.length;
 
   if (topN.length === 0) {
-    document.getElementById('news-grid').innerHTML = `
+    const hasWorker = !!getWorkerUrl();
+    document.getElementById('news-grid').innerHTML = hasWorker ? `
       <div class="state-box" style="grid-column:1/-1">
         <div class="emoji">📭</div>
-        <p>불러온 뉴스가 없습니다.<br>
-        <small style="opacity:.7">3개 프록시 모두 실패했거나 해당 키워드 기사가 없어요.<br>
-        브라우저 콘솔(F12)에서 오류 내용을 확인할 수 있어요.<br>
+        <p>뉴스를 불러오지 못했습니다.<br>
+        <small style="opacity:.7">Worker가 설정돼 있지만 응답이 없거나 해당 키워드 기사가 없어요.<br>
         새로고침 버튼을 다시 눌러보세요.</small></p>
+      </div>` : `
+      <div class="state-box" style="grid-column:1/-1">
+        <div class="emoji">⚡</div>
+        <p style="font-weight:600;margin-bottom:8px;">Cloudflare Worker 설정이 필요합니다</p>
+        <p><small style="opacity:.8;line-height:1.8;">
+          연합뉴스 등 언론사 RSS는 외부 공개 프록시를 차단하고 있어요.<br>
+          우회의 가판대 전용 Worker를 설정 버튼에서 입력하면 정상적으로 불러올 수 있습니다.
+        </small></p>
+        <button onclick="openWorkerModal()" style="margin-top:12px;padding:8px 20px;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer;">
+          ⚙️ 설정 열기
+        </button>
       </div>`;
     return;
   }
@@ -2277,18 +2290,29 @@ async function fetchYahooV8(symbol) {
   const price  = meta.regularMarketPrice ?? meta.previousClose;
   const closed = meta.marketState !== 'REGULAR';
 
-  // 1순위: Yahoo가 직접 제공하는 전일 대비 등락률
-  let chg = meta.regularMarketChangePercent;
-
-  // 2순위: regularMarketChange / previousClose
-  if ((chg == null || Math.abs(chg) < 0.0001) && meta.regularMarketChange && meta.regularMarketPreviousClose) {
-    chg = (meta.regularMarketChange / meta.regularMarketPreviousClose) * 100;
+  // OHLC 데이터에서 직전 거래일 종가 직접 추출 (가장 신뢰도 높음)
+  let chg = null;
+  const closes    = result?.indicators?.quote?.[0]?.close;
+  const timestamps = result?.timestamp;
+  if (closes && timestamps && closes.length >= 2) {
+    // null 제거 후 마지막 2개 유효값 추출
+    const valid = closes.map((c, i) => ({c, t: timestamps[i]})).filter(x => x.c != null);
+    if (valid.length >= 2) {
+      const prevClose = valid[valid.length - 2].c;
+      const lastClose = valid[valid.length - 1].c;
+      // 현재가와 마지막 OHLC 종가 중 더 최신값 사용
+      const cur = price ?? lastClose;
+      if (prevClose && cur) chg = ((cur - prevClose) / prevClose) * 100;
+    }
   }
 
-  // 3순위: chartPreviousClose — 직전 거래일 종가 대비 (가장 정확한 폴백)
-  if ((chg == null || Math.abs(chg) < 0.0001) && meta.chartPreviousClose && price) {
+  // 폴백 1: chartPreviousClose (직전 거래일 종가) vs 현재가
+  if (chg == null && meta.chartPreviousClose && price) {
     chg = ((price - meta.chartPreviousClose) / meta.chartPreviousClose) * 100;
   }
+
+  // 폴백 2: Yahoo 제공 regularMarketChangePercent
+  if (chg == null) chg = meta.regularMarketChangePercent ?? 0;
 
   return {val: price, chg: chg ?? 0, closed};
 }
@@ -2556,34 +2580,34 @@ async function loadTodayGuTrades(code) {
 
   list.innerHTML = '<div class="re-loading"><div class="spinner"></div>조회 중…</div>';
 
-  const now     = new Date();
-  const year    = now.getFullYear();
-  const month   = String(now.getMonth() + 1).padStart(2,'0');
+  const now       = new Date();
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
-  const rawUrl  = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}`;
-  const url     = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
+
+  // 이번달 + 전월 두 달치 동시 요청 (월초에도 20일치 확보)
+  const months = [0, -1].map(offset => {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    return { year: d.getFullYear(), month: String(d.getMonth()+1).padStart(2,'0') };
+  });
+
+  const fetchMonth = async ({year, month}) => {
+    const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}`;
+    const url    = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return [];
+      const xml = new DOMParser().parseFromString(await res.text(), 'text/xml');
+      return [...xml.querySelectorAll('item')];
+    } catch { return []; }
+  };
 
   try {
-    const res   = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const xml   = new DOMParser().parseFromString(await res.text(), 'text/xml');
-    const items = [...xml.querySelectorAll('item')];
-    if (!items.length) {
-      // 이번달 데이터 없으면 전월 시도
-      const prevDate  = new Date(year, now.getMonth() - 1, 1);
-      const prevYear  = prevDate.getFullYear();
-      const prevMonth = String(prevDate.getMonth() + 1).padStart(2,'0');
-      const rawUrl2   = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${prevYear}${prevMonth}`;
-      const url2      = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl2)}` : rawUrl2;
-      const res2      = await fetch(url2);
-      const xml2      = new DOMParser().parseFromString(await res2.text(), 'text/xml');
-      const items2    = [...xml2.querySelectorAll('item')];
-      const trades2   = parseTradeItems(items2);
-      todayTradesCache[code] = {ts: Date.now(), trades: trades2};
-      renderTodayTrades(trades2, gu);
+    const [itemsThis, itemsPrev] = await Promise.all(months.map(fetchMonth));
+    const allItems = [...itemsThis, ...itemsPrev];
+    if (!allItems.length) {
+      list.innerHTML = '<div class="re-loading">거래 데이터가 없습니다.</div>';
       return;
     }
-    const trades = parseTradeItems(items);
+    const trades = parseTradeItems(allItems);
     todayTradesCache[code] = {ts: Date.now(), trades};
     renderTodayTrades(trades, gu);
   } catch(e) {
@@ -2611,16 +2635,32 @@ function renderTodayTrades(trades, gu) {
     return;
   }
 
-  // 가장 최근 거래일 찾기
-  const latestDate = trades[0].dealDate;
-  const latestTrades = trades.filter(t => t.dealDate === latestDate);
+  // 최근 20일치 필터링
+  const latestDate = trades[0].dealDate; // 가장 최근 거래일 (YYYYMMDD)
+  const latestMs = new Date(
+    parseInt(latestDate.slice(0,4)),
+    parseInt(latestDate.slice(4,6)) - 1,
+    parseInt(latestDate.slice(6,8))
+  ).getTime();
+  const cutoffMs = latestMs - (20 * 24 * 60 * 60 * 1000); // 20일 전
 
-  // 날짜 포맷
-  const dateStr = `${latestDate.slice(0,4)}.${latestDate.slice(4,6)}.${latestDate.slice(6,8)}`;
+  const recentTrades = trades.filter(t => {
+    const d = new Date(
+      parseInt(t.dealDate.slice(0,4)),
+      parseInt(t.dealDate.slice(4,6)) - 1,
+      parseInt(t.dealDate.slice(6,8))
+    ).getTime();
+    return d >= cutoffMs;
+  });
+
+  // 날짜 포맷 헬퍼
+  const fmt = d => `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
+  const oldestDate = recentTrades[recentTrades.length - 1]?.dealDate || latestDate;
+
   document.getElementById('re-today-desc').textContent =
-    `최근 거래일 ${dateStr} · ${gu?.name || ''} ${latestTrades.length}건`;
+    `최근 20일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · ${gu?.name || ''} ${recentTrades.length}건`;
 
-  list.innerHTML = latestTrades.map(t => `
+  list.innerHTML = recentTrades.map(t => `
     <div class="re-trade-card" style="border-left-color:${gu?.color||'var(--accent)'}">
       <div class="re-trade-apt">${t.aptNm}</div>
       <div class="re-trade-info">
@@ -2630,7 +2670,7 @@ function renderTodayTrades(trades, gu) {
         <span>🏗 ${t.built}년</span>
       </div>
       <div class="re-trade-price">${fmtPrice(t.amount)}</div>
-      <div class="re-trade-date">${dateStr} 거래</div>
+      <div class="re-trade-date">${fmt(t.dealDate)} 거래</div>
     </div>
   `).join('');
 }
@@ -2746,7 +2786,7 @@ async function fetchStockQuote(stock) {
     const prev   = meta.chartPreviousClose || meta.previousClose;
     const chgPct = prev ? ((price-prev)/prev*100) : 0;
     const data = {
-      name:    meta.shortName || meta.longName || stock.name,
+      name:    stock.name || meta.shortName || meta.longName,
       price, chgPct,
       rsi:    calcRSI(closes, 14),
       sma20:  calcSMA(closes, 20),
