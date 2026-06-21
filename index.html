@@ -446,8 +446,8 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .fi-label{color:var(--dim);font-size:10px;}
 .fi-val{color:var(--bright);font-weight:600;}
 .fi-chg{font-size:10px;}
-.fi-chg.up{color:var(--green);}
-.fi-chg.dn{color:var(--red);}
+.fi-chg.up{color:var(--red);}
+.fi-chg.dn{color:var(--accent);}
 .fi-chg.flat{color:var(--dim);}
 .fi-skeleton{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
 
@@ -2918,8 +2918,18 @@ async function fetchStockQuote(stock) {
     const volumes = (q?.volume || []).filter(v=>v!=null);
     if (!closes.length) throw new Error('no closes');
     const price  = meta.regularMarketPrice;
-    const prev   = meta.chartPreviousClose || meta.previousClose;
-    const chgPct = prev ? ((price-prev)/prev*100) : 0;
+    // OHLC 시계열에서 직전 거래일 종가 직접 추출 (금융 바와 동일 방식)
+    const allCloses = (q?.close || []);
+    const validCloses = allCloses.filter(v => v != null);
+    let chgPct = 0;
+    if (validCloses.length >= 2) {
+      const prevClose = validCloses[validCloses.length - 2];
+      const cur = price ?? validCloses[validCloses.length - 1];
+      if (prevClose && cur) chgPct = ((cur - prevClose) / prevClose) * 100;
+    } else {
+      const prev = meta.chartPreviousClose || meta.previousClose;
+      chgPct = prev ? ((price - prev) / prev * 100) : 0;
+    }
     const data = {
       name:    stock.name || meta.shortName || meta.longName,
       price, chgPct,
