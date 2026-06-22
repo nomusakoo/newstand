@@ -1377,7 +1377,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     </div>
   </div>
 
-  <div class="portfolio-wrap" id="portfolio-wrap">
+  <div class="portfolio-wrap" id="portfolio-wrap" style="margin-bottom:24px;">
     <div class="portfolio-header">
       <span class="portfolio-title">💼 내 포트폴리오
         <span id="pf-sync-status" style="font-size:10px;font-weight:400;color:var(--dim);margin-left:4px;"></span>
@@ -5030,27 +5030,32 @@ function renderPortfolio() {
     return;
   }
 
+  // 모두 원화 기준으로 통일 (미국주식은 currentPriceKrw, avg도 원화 환산)
   let totalCost = 0, totalVal = 0;
   const items = portfolio.map((p, i) => {
-    const isKr   = /^\d{6}$/.test(p.code);
-    const cur    = p.currentPrice ?? null;
-    const cost   = p.avg * p.qty;
-    const val    = cur != null ? cur * p.qty : null;
-    const pnl    = val != null ? val - cost : null;
-    const pnlPct = val != null ? ((cur - p.avg) / p.avg * 100) : null;
-    if (cur != null) { totalCost += cost; totalVal += val; }
-    return {p, i, isKr, cur, cost, val, pnl, pnlPct, color: PF_COLORS[i % PF_COLORS.length]};
+    const isKr    = /^\d{6}$/.test(p.code);
+    const usdKrw  = p.usdKrw || 1;
+    // 현재가: 원화 기준
+    const curKrw  = isKr ? (p.currentPrice ?? null) : (p.currentPriceKrw ?? null);
+    // 평균단가: 원화 기준 (미국주식은 avg가 달러 → 원화 환산)
+    const avgKrw  = isKr ? p.avg : p.avg * usdKrw;
+    const cost    = avgKrw * p.qty;
+    const val     = curKrw != null ? curKrw * p.qty : null;
+    const pnl     = val != null ? val - cost : null;
+    const pnlPct  = val != null ? ((curKrw - avgKrw) / avgKrw * 100) : null;
+    if (curKrw != null) { totalCost += cost; totalVal += val; }
+    // 원본 달러 가격도 보존 (카드 부가정보 표시용)
+    const curUsd  = !isKr ? p.currentPrice : null;
+    return {p, i, isKr, curKrw, curUsd, avgKrw, usdKrw, cost, val, pnl, pnlPct, color: PF_COLORS[i % PF_COLORS.length]};
   });
 
-  // ── 요약 카드 ──
+  // ── 요약 카드 (원화 통일) ──
+  const fmtWon = v => (v < 0 ? '-' : '') + Math.abs(Math.round(v)).toLocaleString('ko-KR') + '원';
   if (totalCost > 0) {
     const totalPnl    = totalVal - totalCost;
     const totalPnlPct = totalPnl / totalCost * 100;
     const pnlColor    = totalPnl > 0 ? 'var(--red)' : totalPnl < 0 ? 'var(--accent)' : 'var(--dim)';
-    const isKrDom     = portfolio.some(p => /^\d{6}$/.test(p.code));
-    const fmtSum      = v => isKrDom
-      ? (v < 0 ? '-' : '') + Math.abs(Math.round(v)).toLocaleString('ko-KR') + '원'
-      : (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(0);
+    const fmtSum      = fmtWon;
     summaryEl.style.display = 'grid';
     summaryEl.innerHTML = `
       <div class="pf-stat-card">
@@ -5112,29 +5117,29 @@ function renderPortfolio() {
   }
 
   // ── 종목 카드 ──
-  cardsEl.innerHTML = items.map(({p, i, isKr, cur, cost, val, pnl, pnlPct, color}) => {
-    const fmtP  = v => v == null ? '–' : isKr ? v.toLocaleString('ko-KR') : '$' + v.toFixed(2);
-    const fmtM  = v => v == null ? '–' : isKr
-      ? (v>=0?'+':'')+Math.round(v).toLocaleString('ko-KR')+'원'
-      : (v>=0?'+$':'-$')+Math.abs(v).toFixed(0);
+  cardsEl.innerHTML = items.map(({p, i, isKr, curKrw, curUsd, avgKrw, usdKrw, cost, val, pnl, pnlPct, color}) => {
+    const fmtW     = v => v == null ? '–' : (v<0?'-':'')+Math.abs(Math.round(v)).toLocaleString('ko-KR')+'원';
+    const fmtWsgn  = v => v == null ? '–' : (v>=0?'+':'-')+Math.abs(Math.round(v)).toLocaleString('ko-KR')+'원';
     const pnlColor = pnlPct == null ? 'var(--dim)' : pnlPct > 0 ? 'var(--red)' : pnlPct < 0 ? 'var(--accent)' : 'var(--dim)';
     const barW     = pnlPct == null ? 50 : Math.min(100, Math.max(0, 50 + pnlPct * 2));
+    // 미국주식: 달러 현재가도 부가 표시
+    const usdNote  = curUsd != null ? `<span style="font-size:10px;color:var(--muted);font-family:var(--font-mono);"> ($${curUsd.toFixed(2)} × ${Math.round(usdKrw).toLocaleString()})</span>` : '';
     return `
     <div class="pf-card" style="border-left:3px solid ${color};">
       <div class="pf-card-top">
-        <div style="display:flex;align-items:center;gap:0;">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0;">
           <span class="pf-card-name">${p.name}</span>
           <span class="pf-card-code">${p.code}</span>
         </div>
         <div style="text-align:right;">
-          <div class="pf-card-price" style="color:${pnlColor};">${fmtP(cur)}</div>
+          <div class="pf-card-price" style="color:${pnlColor};">${fmtW(curKrw)}${usdNote}</div>
           <div style="font-size:11px;font-family:var(--font-mono);color:${pnlColor};">${pnlPct!=null?(pnlPct>=0?'▲':'▼')+Math.abs(pnlPct).toFixed(2)+'%':'–'}</div>
         </div>
       </div>
       <div class="pf-card-meta">
         <div class="pf-card-meta-item">
-          <span class="pf-card-meta-label">평균단가</span>
-          <span class="pf-card-meta-val">${fmtP(p.avg)}</span>
+          <span class="pf-card-meta-label">평균단가(원화)</span>
+          <span class="pf-card-meta-val">${fmtW(avgKrw)}</span>
         </div>
         <div class="pf-card-meta-item">
           <span class="pf-card-meta-label">수량</span>
@@ -5142,11 +5147,11 @@ function renderPortfolio() {
         </div>
         <div class="pf-card-meta-item">
           <span class="pf-card-meta-label">매입금액</span>
-          <span class="pf-card-meta-val">${fmtM(cost)}</span>
+          <span class="pf-card-meta-val">${fmtW(cost)}</span>
         </div>
         <div class="pf-card-meta-item">
           <span class="pf-card-meta-label">평가손익</span>
-          <span class="pf-card-meta-val" style="color:${pnlColor};">${fmtM(pnl)}</span>
+          <span class="pf-card-meta-val" style="color:${pnlColor};">${fmtWsgn(pnl)}</span>
         </div>
       </div>
       <div class="pf-card-bar"><div class="pf-card-bar-fill" style="width:${barW}%;background:${pnlColor};"></div></div>
@@ -5166,19 +5171,53 @@ function togglePortfolio() {
   if (btn)  btn.textContent = pfFolded ? '펼치기' : '접기';
 }
 
+/* 포트폴리오용 USD/KRW 환율 — ns_krw_history 또는 실시간 */
+async function getUsdKrw() {
+  // 1순위: ns_krw_history에 오늘 환율이 있으면 사용
+  try {
+    const hist  = JSON.parse(localStorage.getItem('ns_krw_history') || '{}');
+    const today = new Date().toISOString().slice(0,10);
+    if (hist[today]) return hist[today];
+    // 가장 최근 날짜 사용
+    const latest = Object.keys(hist).sort().slice(-1)[0];
+    if (latest && hist[latest]) return hist[latest];
+  } catch(e) {}
+  // 2순위: 실시간 API 직접 호출
+  try {
+    const res  = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
+    const data = await res.json();
+    return data?.rates?.KRW ?? 1380;
+  } catch(e) {}
+  return 1380; // 최후 폴백
+}
+
 async function fetchPortfolioPrices() {
   if (!portfolio.length) return;
+  // 미국주식 있으면 환율 먼저 가져오기
+  const hasUs = portfolio.some(p => !/^\d{6}$/.test(p.code));
+  const usdKrw = hasUs ? await getUsdKrw() : 1;
+
   await Promise.allSettled(portfolio.map(async (p) => {
+    const isKr = /^\d{6}$/.test(p.code);
     try {
       let result;
-      if (/^\d{6}$/.test(p.code)) {
+      if (isKr) {
         const probe = await resolveKrSymbol(p.code);
         result = await fetchYahooChart(probe.symbol, '5d');
+        p.currentPrice   = result?.meta?.regularMarketPrice ?? null;
+        p.currentPriceKrw = p.currentPrice; // 국내: 그대로
+        p.usdKrw = null;
       } else {
         result = await fetchYahooChart(p.code, '5d');
+        const usdPrice   = result?.meta?.regularMarketPrice ?? null;
+        p.currentPrice   = usdPrice;                              // 달러 원본 유지
+        p.currentPriceKrw = usdPrice != null ? Math.round(usdPrice * usdKrw) : null;
+        p.usdKrw = usdKrw;
       }
-      p.currentPrice = result?.meta?.regularMarketPrice ?? null;
-    } catch(e) { p.currentPrice = null; }
+    } catch(e) {
+      p.currentPrice    = null;
+      p.currentPriceKrw = null;
+    }
   }));
   renderPortfolio();
 }
