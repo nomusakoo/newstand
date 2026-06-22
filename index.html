@@ -4871,15 +4871,36 @@ async function savePfToSb() {
   const cfg = getSbCfg();
   if (!cfg) return;
   try {
-    // 전체 삭제 후 재삽입 (단순 동기화)
-    await fetch(`${cfg.url}/rest/v1/portfolio`, {
-      method: 'DELETE',
-      headers: {...sbHeaders(), 'Content-Type': 'application/json'},
+    // 1. 현재 포트폴리오 코드 목록
+    const codes = portfolio.map(p => p.code);
+
+    // 2. 기존 DB 항목 중 현재 목록에 없는 것 삭제 (code=in.(xxx,yyy) 방식)
+    const existRes = await fetch(`${cfg.url}/rest/v1/portfolio?select=code`, {
+      headers: sbHeaders()
     });
+    if (existRes.ok) {
+      const existRows = await existRes.json();
+      const existCodes = existRows.map(r => r.code);
+      const toDelete = existCodes.filter(code => !codes.includes(code));
+      if (toDelete.length > 0) {
+        const inClause = toDelete.map(c => `"${c}"`).join(',');
+        await fetch(`${cfg.url}/rest/v1/portfolio?code=in.(${toDelete.join(',')})`, {
+          method: 'DELETE',
+          headers: sbHeaders(),
+        });
+      }
+    }
+
     if (!portfolio.length) return;
+
+    // 3. upsert (있으면 업데이트, 없으면 삽입) — id 없이 code 기준
     await fetch(`${cfg.url}/rest/v1/portfolio`, {
       method: 'POST',
-      headers: sbHeaders(),
+      headers: {
+        ...sbHeaders(),
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
+        'on_conflict': 'code',
+      },
       body: JSON.stringify(portfolio.map(p => ({
         code: p.code, name: p.name,
         avg_price: p.avg, qty: p.qty,
