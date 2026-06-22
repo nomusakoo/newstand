@@ -678,6 +678,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .vol-surge{background:rgba(245,166,35,.15);color:var(--accent2);border:1px solid rgba(245,166,35,.4);
   font-size:10px;font-weight:700;padding:2px 6px;border-radius:12px;display:inline-block;}
 .vol-normal{color:var(--dim);font-family:var(--font-mono);font-size:10px;}
+
 .stock-panel-inner{overflow-x:auto;}
 /* ─── 종목 알림 ──────────────────────────────────────────────── */
 .alert-modal-bg{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;}
@@ -1943,7 +1944,9 @@ function switchTab(tabName) {
   document.querySelectorAll('.tab-btn,.bnav-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tabName);
   });
-  if (tabName === 'stock') fetchPortfolioPrices();
+  if (tabName === 'stock') {
+    fetchPortfolioPrices();
+  }
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + tabName).classList.add('active');
   if (tabName === 'stock') {
@@ -2957,6 +2960,7 @@ function saveAllSettings() {
 async function resetStockList() {
   if (!confirm('주식 종목 목록을 기본값으로 초기화할까요?\n편집한 그룹/종목이 모두 사라집니다.')) return;
   localStorage.removeItem(STOCK_LIST_KEY);
+  localStorage.removeItem('ns_kr_sym'); // 심볼 캐시도 초기화
   // Supabase에서도 삭제
   const cfg = getSbCfg();
   if (cfg) {
@@ -3651,6 +3655,12 @@ function saveStockList() {
   sbSaveSetting('stock_list', data).catch(() => {});
 }
 
+// KS/KQ 심볼 캐시 (코드 → 확정된 Yahoo 심볼)
+let _krSymbolCache = {};
+try {
+  _krSymbolCache = JSON.parse(localStorage.getItem('ns_kr_sym') || '{}');
+} catch(e) {}
+
 function loadStockListLocal() {
   // localStorage에서 즉시 로드 (동기, 앱 시작 시 사용)
   try {
@@ -3713,16 +3723,43 @@ async function fetchYahooChart(symbol, range='60d') {
 }
 
 async function resolveKrSymbol(code) {
-  // 국내 6자리 코드: KS(코스피) 먼저, 실패 시 KQ(코스닥) 시도
-  try {
-    const r = await fetchYahooChart(code + '.KS', '5d');
-    return {symbol: code + '.KS', result: r};
-  } catch(e) {}
-  try {
-    const r = await fetchYahooChart(code + '.KQ', '5d');
-    return {symbol: code + '.KQ', result: r};
-  } catch(e) {}
-  throw new Error(`${code}: KS/KQ 모두 실패 — 코드 확인`);
+  // stock._symbol 캐시가 있으면 바로 사용
+  const cached = _krSymbolCache[code];
+  if (cached) {
+    const r = await fetchYahooChart(cached, '5d');
+    return {symbol: cached, result: r};
+  }
+
+  // KS/KQ 병렬 시도 후 더 최신 데이터를 가진 쪽 선택
+  const tryFetch = async (suffix) => {
+    try {
+      const r = await fetchYahooChart(code + suffix, '5d');
+      const price = r?.meta?.regularMarketPrice;
+      const ts    = r?.meta?.regularMarketTime || 0;
+      if (!price || price <= 0) return null;
+      return {symbol: code + suffix, result: r, ts};
+    } catch(e) { return null; }
+  };
+
+  const [ks, kq] = await Promise.all([tryFetch('.KS'), tryFetch('.KQ')]);
+
+  let chosen = null;
+  if (ks && kq) {
+    // 둘 다 성공이면 더 최신 타임스탬프 선택
+    chosen = ks.ts >= kq.ts ? ks : kq;
+  } else if (ks) {
+    chosen = ks;
+  } else if (kq) {
+    chosen = kq;
+  }
+
+  if (!chosen) throw new Error(`${code}: KS/KQ 모두 실패 — 코드 확인`);
+
+  // 결과 캐시 (1일)
+  _krSymbolCache[code] = chosen.symbol;
+  try { localStorage.setItem('ns_kr_sym', JSON.stringify(_krSymbolCache)); } catch(e) {}
+
+  return {symbol: chosen.symbol, result: chosen.result};
 }
 
 async function fetchStockQuote(stock) {
@@ -3774,6 +3811,7 @@ async function fetchStockQuote(stock) {
     const w52High = meta.fiftyTwoWeekHigh ?? null;
     const w52Low  = meta.fiftyTwoWeekLow  ?? null;
     const data = {
+      code:    stock.code,
       name:    stock.name || meta.shortName || meta.longName,
       price, chgPct,
       rsi:    calcRSI(closes, 14),
@@ -4045,7 +4083,7 @@ function renderStockGroups(tab, list, dataArr) {
       <col style="width:160px"><col style="width:70px"><col style="width:100px">
       <col style="width:70px"><col style="width:75px"><col style="width:80px">
       <col style="width:90px"><col style="width:80px"><col style="width:75px">
-      <col style="width:65px"><col style="width:60px"><col style="width:78px"><col style="width:50px"><col style="width:55px"><col style="width:28px">
+      <col style="width:65px"><col style="width:60px"><col style="width:78px"><col style="width:50px"><col style="width:28px">
     </colgroup>
     <thead><tr>
       ${thSort('name','종목명','text')}
@@ -4126,7 +4164,7 @@ function renderStockGroups(tab, list, dataArr) {
             <col style="width:160px"><col style="width:70px"><col style="width:100px">
             <col style="width:70px"><col style="width:75px"><col style="width:80px">
             <col style="width:90px"><col style="width:80px"><col style="width:75px">
-            <col style="width:65px"><col style="width:60px"><col style="width:78px"><col style="width:50px"><col style="width:55px"><col style="width:28px">
+            <col style="width:65px"><col style="width:60px"><col style="width:78px"><col style="width:50px"><col style="width:28px">
           </colgroup>
           <thead><tr>
             ${thSort('name','종목명','text')}${thSort('code','코드','text')}${thSort('price','현재가','num')}
@@ -4309,14 +4347,20 @@ function semRenderStockList() {
     el.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:8px 0;">종목이 없습니다.</div>';
     return;
   }
-  el.innerHTML = list.map((s, i) => `
-    <div class="sem-stock-item">
+  el.innerHTML = list.map((s, i) => {
+    const sym = _krSymbolCache[s.code] || s.code;
+    const exchLabel = sym.endsWith('.KS') ? '<span style="font-size:9px;color:#4f8aff;background:rgba(79,138,255,.1);padding:1px 4px;border-radius:3px;">KOSPI</span>' :
+                      sym.endsWith('.KQ') ? '<span style="font-size:9px;color:#27c97a;background:rgba(39,201,122,.1);padding:1px 4px;border-radius:3px;">KOSDAQ</span>' : '';
+    return `
+    <div class="sem-stock-item" id="sem-stock-item-${s.code}">
       <span class="sem-stock-name">${s.name}</span>
       <span class="sem-stock-code">${s.code}</span>
+      ${exchLabel}
       ${s.isDividend ? '<span style="font-size:10px;color:var(--accent2);">배당</span>' : ''}
+      <button style="padding:2px 7px;border-radius:4px;font-size:10px;background:rgba(79,138,255,.1);color:var(--accent);border:1px solid rgba(79,138,255,.2);cursor:pointer;flex-shrink:0;" onclick="semEditStockInline('${s.code}')">수정</button>
       <button class="sem-stock-del" onclick="semDeleteStock('${s.code}')">삭제</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function semSaveGroupName() {
@@ -4342,48 +4386,107 @@ function semSaveGroupName() {
 }
 
 let semVerifyTimer = null;
+let semPendingSymbol = null; // 확정된 심볼 저장 (KS or KQ 선택 후)
+
 async function semVerifyCode(rawCode) {
   const statusEl = document.getElementById('sem-code-status');
   const code = rawCode.trim().toUpperCase();
+  semPendingSymbol = null;
   if (!statusEl) return;
-  if (code.length < 1) { statusEl.textContent = ''; return; }
+  if (code.length < 1) { statusEl.innerHTML = ''; return; }
 
-  // 디바운스 300ms
   clearTimeout(semVerifyTimer);
   statusEl.innerHTML = '<span style="color:var(--dim)">⏳ 확인 중…</span>';
   semVerifyTimer = setTimeout(async () => {
     try {
-      let meta, resolvedSymbol;
-      if (/^\d{6}$/.test(code)) {
-        // 국내: KS/KQ 자동 판별
-        const probe = await resolveKrSymbol(code);
-        meta = probe.result.meta;
-        resolvedSymbol = probe.symbol;
+      const isKr = /^\d{6}$/.test(code);
+      if (isKr) {
+        // KS/KQ 병렬 조회
+        const tryFetch = async (suffix) => {
+          try {
+            const r = await fetchYahooChart(code + suffix, '5d');
+            const price = r?.meta?.regularMarketPrice;
+            if (!price || price <= 0) return null;
+            return {symbol: code + suffix, meta: r.meta, price};
+          } catch(e) { return null; }
+        };
+        const [ks, kq] = await Promise.all([tryFetch('.KS'), tryFetch('.KQ')]);
+
+        if (!ks && !kq) throw new Error('KS/KQ 모두 조회 실패 — 코드 확인');
+
+        if (ks && kq) {
+          // 둘 다 있으면 사용자가 선택
+          const fmtPrice2 = v => v?.toLocaleString('ko-KR') + '원';
+          statusEl.innerHTML = `
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <span style="font-size:10px;color:var(--accent2);font-weight:600;">⚠️ KS/KQ 두 거래소에 모두 존재합니다. 올바른 거래소를 선택해주세요.</span>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button onclick="semSelectExchange('${code}','.KS','${ks.meta.shortName||code}',${ks.price})"
+                  style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--bright);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;"
+                  onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+                  🔵 KOSPI (.KS)<br><span style="color:var(--dim);font-weight:400;">${ks.meta.shortName||code} · ${fmtPrice2(ks.price)}</span>
+                </button>
+                <button onclick="semSelectExchange('${code}','.KQ','${kq.meta.shortName||code}',${kq.price})"
+                  style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--bright);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;"
+                  onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+                  🟢 KOSDAQ (.KQ)<br><span style="color:var(--dim);font-weight:400;">${kq.meta.shortName||code} · ${fmtPrice2(kq.price)}</span>
+                </button>
+              </div>
+            </div>`;
+          return;
+        }
+
+        // 하나만 있으면 바로 확정
+        const winner = ks || kq;
+        semSelectExchange(code, ks ? '.KS' : '.KQ', winner.meta.shortName || code, winner.price);
       } else {
-        const result = await fetchYahooChart(code, '5d');
-        meta = result.meta;
-        resolvedSymbol = code;
+        // 미국주식
+        const r = await fetchYahooChart(code, '5d');
+        const meta = r.meta;
+        const price = meta.regularMarketPrice;
+        const name = meta.shortName || meta.longName || code;
+        const nameInput = document.getElementById('sem-add-name');
+        if (nameInput && !nameInput.value.trim()) nameInput.value = name;
+        semPendingSymbol = code;
+        statusEl.innerHTML = `<span style="color:var(--green)">✅ ${name} · $${price?.toFixed(2)} (${code})</span>`;
       }
-      if (!meta) throw new Error('심볼 없음');
-      const name = meta.shortName || meta.longName || symbol;
-      const price = meta.regularMarketPrice;
-      const nameInput = document.getElementById('sem-add-name');
-      if (nameInput && !nameInput.value.trim()) nameInput.value = name; // 종목명 자동완성
-      const isKrCode = /^\d{6}$/.test(code);
-      statusEl.innerHTML = `<span style="color:var(--green)">✅ ${name}${price ? ' · ' + (isKrCode ? price.toLocaleString('ko-KR') : '$'+price.toFixed(2)) : ''} (${resolvedSymbol})</span>`;
     } catch(e) {
       statusEl.innerHTML = `<span style="color:var(--red)">❌ ${e.message} — 코드를 확인해주세요</span>`;
     }
-  }, 300);
+  }, 400);
+}
+
+function semSelectExchange(code, suffix, name, price) {
+  semPendingSymbol = code + suffix;
+  _krSymbolCache[code] = semPendingSymbol;
+  try { localStorage.setItem('ns_kr_sym', JSON.stringify(_krSymbolCache)); } catch(e) {}
+  const nameInput = document.getElementById('sem-add-name');
+  if (nameInput && !nameInput.value.trim()) nameInput.value = name;
+  const statusEl = document.getElementById('sem-code-status');
+  if (statusEl) statusEl.innerHTML = `<span style="color:var(--green)">✅ ${name} · ${price?.toLocaleString('ko-KR')}원 (${semPendingSymbol}) 선택됨</span>`;
 }
 
 function semAddStock() {
   if (!semCurrentGroup) return alert('먼저 그룹명을 저장해주세요.');
   const name = document.getElementById('sem-add-name').value.trim();
-  const code = document.getElementById('sem-add-code').value.trim().toUpperCase();
+  const rawCode = document.getElementById('sem-add-code').value.trim().toUpperCase();
   const isDividend = document.getElementById('sem-add-dividend').checked;
-  if (!name || !code) return alert('종목명과 코드를 모두 입력해주세요.');
+  if (!name || !rawCode) return alert('종목명과 코드를 모두 입력해주세요.');
+
+  // 국내 종목이고 KS/KQ 선택이 안 됐으면 경고
+  const isKr = /^\d{6}$/.test(rawCode);
+  if (isKr && !semPendingSymbol) {
+    return alert('거래소(KS/KOSPI 또는 KQ/KOSDAQ)를 먼저 선택해주세요.\n코드 입력 후 잠시 기다리면 선택 버튼이 나타납니다.');
+  }
+
+  const code = rawCode; // STOCK_LIST에는 6자리 코드만 저장
   if (STOCK_LIST[semCurrentTab].some(s => s.code === code)) return alert('이미 추가된 종목 코드입니다.');
+
+  // KR 심볼 캐시 확정
+  if (isKr && semPendingSymbol) {
+    _krSymbolCache[code] = semPendingSymbol;
+    try { localStorage.setItem('ns_kr_sym', JSON.stringify(_krSymbolCache)); } catch(e) {}
+  }
   // 해당 그룹의 마지막 위치에 삽입 (기타 그룹 빈 항목 바로 앞)
   const idx = STOCK_LIST[semCurrentTab].findIndex(s => s.group === semCurrentGroup && s.code === '');
   const entry = {group: semCurrentGroup, code, name, isDividend};
@@ -4415,6 +4518,54 @@ function semAddStock() {
       showToast(`⚠️ ${name}(${code}) fetch 실패: ${e.message}`);
     }
   })();
+}
+
+function semEditStockInline(code) {
+  const s = STOCK_LIST[semCurrentTab].find(s => s.code === code && s.group === semCurrentGroup);
+  if (!s) return;
+  const el = document.getElementById(`sem-stock-item-${code}`);
+  if (!el) return;
+
+  const curSym  = _krSymbolCache[code] || '';
+  const isKr    = /^\d{6}$/.test(code);
+  const exchOpts = isKr ? `
+    <select id="sem-edit-exch-${code}" style="padding:3px 6px;border-radius:5px;border:1px solid var(--border);background:var(--panel);color:var(--bright);font-size:11px;flex-shrink:0;">
+      <option value=".KS" ${curSym.endsWith('.KS')?'selected':''}>KOSPI (.KS)</option>
+      <option value=".KQ" ${curSym.endsWith('.KQ')?'selected':''}>KOSDAQ (.KQ)</option>
+    </select>` : '';
+
+  el.innerHTML = `
+    <input id="sem-edit-name-${code}" value="${s.name}" style="flex:1;padding:3px 7px;border-radius:5px;border:1px solid var(--accent);background:var(--panel);color:var(--bright);font-size:12px;min-width:0;">
+    ${exchOpts}
+    <label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--dim);flex-shrink:0;">
+      <input type="checkbox" id="sem-edit-div-${code}" ${s.isDividend?'checked':''} style="accent-color:var(--accent2);"> 배당
+    </label>
+    <button style="padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;background:var(--accent);color:#fff;border:none;cursor:pointer;flex-shrink:0;" onclick="semSaveStockEdit('${code}')">저장</button>
+    <button style="padding:2px 7px;border-radius:4px;font-size:11px;background:var(--tag-bg);color:var(--dim);border:1px solid var(--border);cursor:pointer;flex-shrink:0;" onclick="semRenderStockList()">취소</button>`;
+}
+
+function semSaveStockEdit(code) {
+  const s = STOCK_LIST[semCurrentTab].find(s => s.code === code && s.group === semCurrentGroup);
+  if (!s) return;
+  const newName = document.getElementById(`sem-edit-name-${code}`)?.value.trim();
+  const newDiv  = document.getElementById(`sem-edit-div-${code}`)?.checked;
+  const newExch = document.getElementById(`sem-edit-exch-${code}`)?.value;
+  if (!newName) { showToast('⚠️ 종목명을 입력해주세요.'); return; }
+
+  s.name = newName;
+  s.isDividend = newDiv;
+
+  // 거래소 변경 시 심볼 캐시 업데이트
+  if (newExch && /^\d{6}$/.test(code)) {
+    _krSymbolCache[code] = code + newExch;
+    try { localStorage.setItem('ns_kr_sym', JSON.stringify(_krSymbolCache)); } catch(e) {}
+    delete stockDataCache[code]; // 캐시 무효화
+  }
+
+  saveStockList();
+  semRenderStockList();
+  semRerender();
+  showToast(`${newName} 수정됐어요.`);
 }
 
 function semDeleteStock(code) {
