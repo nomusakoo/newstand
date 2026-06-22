@@ -1343,30 +1343,6 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     </div>
   </div>
 
-  <!-- 국내/미국 서브탭 -->
-  <div class="stock-subtab-bar">
-    <button class="stock-subtab active" id="subtab-kr" onclick="switchStockTab('kr')">🇰🇷 국내주식</button>
-    <button class="stock-subtab" id="subtab-us" onclick="switchStockTab('us')">🇺🇸 미국주식</button>
-    <button class="stock-edit-btn" style="margin-left:auto;padding:6px 12px;font-size:11px;" onclick="openAlertModal()">🔔 알림<span class="alert-badge" id="alert-badge" style="display:none;"></span></button>
-    <button class="stock-edit-btn" style="padding:6px 12px;font-size:11px;" onclick="openStockOrderModal()">☰ 그룹 순서</button>
-    <button class="re-today-refresh" onclick="refreshStockTab()">↺ 새로고침</button>
-  </div>
-
-  <!-- 국내 -->
-  <div id="stock-panel-kr">
-    <div class="stock-panel-inner" id="stock-table-kr">
-      <div class="re-loading"><div class="spinner"></div>로딩 중…</div>
-    </div>
-  </div>
-
-  <!-- 미국 -->
-  <div id="stock-panel-us" style="display:none;">
-    <div class="stock-panel-inner" id="stock-table-us">
-      <div class="re-loading"><div class="spinner"></div>로딩 중…</div>
-    </div>
-  </div>
-
-  <!-- 포트폴리오 -->
   <!-- 포트폴리오 추가 모달 -->
   <div class="pf-modal-bg" id="pf-modal-bg" onclick="closePfModal(event)">
     <div class="pf-modal">
@@ -1435,6 +1411,31 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     </div>
   </div>
 
+
+  <!-- 국내/미국 서브탭 -->
+  <div class="stock-subtab-bar">
+    <button class="stock-subtab active" id="subtab-kr" onclick="switchStockTab('kr')">🇰🇷 국내주식</button>
+    <button class="stock-subtab" id="subtab-us" onclick="switchStockTab('us')">🇺🇸 미국주식</button>
+    <button class="stock-edit-btn" style="margin-left:auto;padding:6px 12px;font-size:11px;" onclick="openAlertModal()">🔔 알림<span class="alert-badge" id="alert-badge" style="display:none;"></span></button>
+    <button class="stock-edit-btn" style="padding:6px 12px;font-size:11px;" onclick="openStockOrderModal()">☰ 그룹 순서</button>
+    <button class="re-today-refresh" onclick="refreshStockTab()">↺ 새로고침</button>
+  </div>
+
+  <!-- 국내 -->
+  <div id="stock-panel-kr">
+    <div class="stock-panel-inner" id="stock-table-kr">
+      <div class="re-loading"><div class="spinner"></div>로딩 중…</div>
+    </div>
+  </div>
+
+  <!-- 미국 -->
+  <div id="stock-panel-us" style="display:none;">
+    <div class="stock-panel-inner" id="stock-table-us">
+      <div class="re-loading"><div class="spinner"></div>로딩 중…</div>
+    </div>
+  </div>
+
+  <!-- 포트폴리오 -->
   <!-- 히트맵 -->
   <div class="heatmap-wrap">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px;">
