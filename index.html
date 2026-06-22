@@ -2466,13 +2466,15 @@ function getSbCfg() {
   return (url && key) ? {url, key} : null;
 }
 
-function sbHeaders() {
+function sbHeaders(extra = {}) {
   const c = getSbCfg();
+  if (!c) return {'Content-Type': 'application/json'};
   return {
     'Content-Type':  'application/json',
     'apikey':        c.key,
     'Authorization': `Bearer ${c.key}`,
     'Prefer':        'return=representation',
+    ...extra,
   };
 }
 
@@ -2481,12 +2483,9 @@ async function sbSaveSetting(key, value) {
   const cfg = getSbCfg();
   if (!cfg) return false;
   try {
-    const res = await fetch(`${cfg.url}/rest/v1/user_settings`, {
+    const res = await fetch(`${cfg.url}/rest/v1/user_settings?on_conflict=key`, {
       method: 'POST',
-      headers: {
-        ...sbHeaders(),
-        'Prefer': 'return=minimal,resolution=merge-duplicates',
-      },
+      headers: sbHeaders({'Prefer': 'return=minimal,resolution=merge-duplicates'}),
       body: JSON.stringify({key, value, updated_at: new Date().toISOString()}),
     });
     return res.ok;
