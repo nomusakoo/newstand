@@ -3633,14 +3633,16 @@ function renderTodayTrades(trades, gu) {
   ).getTime();
   const cutoffMs = latestMs - (10 * 24 * 60 * 60 * 1000); // 10일 전
 
-  const recentTrades = trades.filter(t => {
-    const d = new Date(
-      parseInt(t.dealDate.slice(0,4)),
-      parseInt(t.dealDate.slice(4,6)) - 1,
-      parseInt(t.dealDate.slice(6,8))
-    ).getTime();
-    return d >= cutoffMs;
-  });
+  const recentTrades = trades
+    .filter(t => {
+      const d = new Date(
+        parseInt(t.dealDate.slice(0,4)),
+        parseInt(t.dealDate.slice(4,6)) - 1,
+        parseInt(t.dealDate.slice(6,8))
+      ).getTime();
+      return d >= cutoffMs;
+    })
+    .sort((a, b) => b.amount - a.amount); // 가격 내림차순
 
   // 날짜 포맷 헬퍼
   const fmt = d => `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
@@ -5855,30 +5857,38 @@ async function loadAptList(code, guName, year, month) {
   }
 
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
-  const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}`;
-  const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
+  if (!workerUrl) {
+    panel.innerHTML = '<div class="re-loading">⚠️ Worker URL이 설정되지 않았습니다.</div>';
+    return;
+  }
+  // JSON 형식으로 요청
+  const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}&_type=json`;
+  const url = `${workerUrl}?url=${encodeURIComponent(rawUrl)}`;
   try {
     const res  = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const xml  = new DOMParser().parseFromString(await res.text(), 'text/xml');
-    const items = [...xml.querySelectorAll('item')];
-    if (!items.length) { panel.innerHTML = '<div class="re-loading">해당 기간 거래 데이터가 없습니다.</div>'; return; }
-    const g = (el, tag) => el.querySelector(tag)?.textContent?.trim() || '';
+    const json = await res.json();
+    const rc   = json?.response?.header?.resultCode;
+    if (rc !== '000' && rc !== '00') throw new Error(`API 오류: ${json?.response?.header?.resultMsg}`);
+    const rawItems = json?.response?.body?.items?.item;
+    if (!rawItems) { panel.innerHTML = '<div class="re-loading">해당 기간 거래 데이터가 없습니다.</div>'; return; }
+    const items = Array.isArray(rawItems) ? rawItems : [rawItems];
     reAllTrades = items.map(item => ({
-      aptNm:    g(item,'aptNm'),
-      dong:     g(item,'umdNm'),
-      built:    g(item,'buildYear'),
-      amount:   parseInt(g(item,'dealAmount').replace(/,/g,'')||'0'),
-      area:     parseFloat(g(item,'excluUseAr')||'0'),
-      floor:    g(item,'floor'),
-      dealDate: `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
-    }));
+      aptNm:    String(item.aptNm || '').trim(),
+      dong:     String(item.umdNm || '').trim(),
+      built:    String(item.buildYear || ''),
+      amount:   parseInt(String(item.dealAmount || '0').replace(/,/g, '')),
+      area:     parseFloat(item.excluUseAr || 0),
+      floor:    String(item.floor || ''),
+      dealDate: `${item.dealYear}${String(item.dealMonth).padStart(2,'0')}${String(item.dealDay).padStart(2,'0')}`,
+    })).filter(t => t.aptNm && t.amount > 0);
     // 24시간 캐싱
     try { localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), data:reAllTrades})); } catch(e) {}
     reCurrentDong = 'all';
     buildDongTabs();
     groupAndRender();
   } catch(e) {
+    console.error('[loadAptList]', e);
     panel.innerHTML = `<div class="re-loading">⚠️ 오류: ${e.message}</div>`;
   }
 }
@@ -6035,18 +6045,19 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
           amount: t.amount, area: t.area, dealDate: t.dealDate,
         }));
       }
-      const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${guCode}&DEAL_YMD=${ym}`;
+      const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${guCode}&DEAL_YMD=${ym}&_type=json`;
       const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
       const res  = await fetch(url);
-      const xml  = new DOMParser().parseFromString(await res.text(), 'text/xml');
-      const items = [...xml.querySelectorAll('item')];
-      const g = (el,tag) => el.querySelector(tag)?.textContent?.trim()||'';
+      const json = await res.json();
+      const rawItems = json?.response?.body?.items?.item;
+      if (!rawItems) return [];
+      const items = Array.isArray(rawItems) ? rawItems : [rawItems];
       const allItems = items.map(item=>({
-        aptNm:    g(item,'aptNm'),
-        amount:   parseInt(g(item,'dealAmount').replace(/,/g,'')||'0'),
-        area:     parseFloat(g(item,'excluUseAr')||'0'),
-        dealDate: `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
-      }));
+        aptNm:    String(item.aptNm||'').trim(),
+        amount:   parseInt(String(item.dealAmount||'0').replace(/,/g,'')),
+        area:     parseFloat(item.excluUseAr||0),
+        dealDate: `${item.dealYear}${String(item.dealMonth).padStart(2,'0')}${String(item.dealDay).padStart(2,'0')}`,
+      })).filter(t=>t.aptNm && t.amount>0);
       try { localStorage.setItem(trendCacheKey, JSON.stringify({ts:Date.now(), data:allItems})); } catch(e) {}
       return allItems.filter(t=>t.aptNm===aptName).map(t=>({amount:t.amount,area:t.area,dealDate:t.dealDate}));
     }));
