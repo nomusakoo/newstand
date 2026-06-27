@@ -1147,51 +1147,14 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 
   <!-- 오늘의 신규거래 -->
   <div class="re-today-wrap">
-    <!-- 부동산 알림 모달 -->
-    <div class="alert-modal-bg" id="re-alert-modal-bg" onclick="closeReAlertModal(event)">
-      <div class="alert-modal">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span class="sem-title">🏠 부동산 알림 설정</span>
-          <button class="sem-btn sem-btn-ghost" onclick="closeReAlertModal()" style="padding:4px 10px;">✕</button>
-        </div>
-        <div class="sem-section">
-          <div class="sem-label">새 알림 추가</div>
-          <div class="sem-row">
-            <input class="sem-input" id="re-alert-apt" placeholder="아파트명 (예: 래미안)" style="flex:1.5">
-            <input class="sem-input" id="re-alert-gu" placeholder="자치구 (예: 강남구)" style="flex:1">
-          </div>
-          <div class="sem-row">
-            <select class="insight-sort-select" id="re-alert-cond" style="flex:1;">
-              <option value="below">이하 거래 시</option>
-              <option value="above">이상 거래 시</option>
-            </select>
-            <input class="sem-input" id="re-alert-price" placeholder="기준가 (만원)" type="number" style="flex:1">
-            <button class="sem-btn sem-btn-primary" onclick="addReAlert()">+ 추가</button>
-          </div>
-        </div>
-        <div class="sem-divider"></div>
-        <div class="sem-section">
-          <div class="sem-label">설정된 알림</div>
-          <div id="re-alert-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-        </div>
-        <div style="font-size:11px;color:var(--dim);line-height:1.6;padding:8px 12px;background:var(--panel);border-radius:8px;">
-          💡 새로고침 시 최신 실거래가와 비교합니다.
-        </div>
-      </div>
-    </div>
-
     <div class="re-today-header">
       <span class="re-title">🏷️ 최신 실거래</span>
-      <span class="re-today-desc" id="re-today-desc">최근 등록 거래 · 6개 자치구</span>
-      <button class="re-gu-edit-btn" onclick="openReAlertModal()">🔔 알림<span class="alert-badge" id="re-alert-badge" style="display:none;"></span></button>
-      <button class="re-gu-edit-btn" onclick="openGuEditModal()">✏️ 자치구 편집</button>
+      <span class="re-today-desc" id="re-today-desc">최근 10일 · 광진구</span>
       <button class="re-today-refresh" id="re-today-refresh-btn" onclick="loadTodayTrades()">↺ 새로고침</button>
     </div>
-    <!-- 자치구 탭 -->
-    <div class="re-today-tabs" id="re-today-tabs"></div>
     <!-- 거래 목록 -->
     <div class="re-today-list" id="re-today-list">
-      <div class="re-loading">자치구 탭을 클릭하면 최신 거래가 표시됩니다.</div>
+      <div class="re-loading">로딩 중…</div>
     </div>
   </div>
 
@@ -2028,7 +1991,7 @@ function switchTab(tabName) {
   if (tabName === 'realestate') {
     setTimeout(() => {
       initSeoulMap();
-      initTodayTabs();
+      loadTodayTrades(); // 광진구 자동 로드
       if (!todayActiveGu) selectTodayGu('11215');
     }, 50);
   }
@@ -3539,7 +3502,35 @@ const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
 
 async function loadTodayGuTrades(code) {
   const list = document.getElementById('re-today-list');
-  const gu   = TODAY_GU.find(g => g.code === code);
+  // 자치구 정보 (코드 → 이름/색상)
+  const GU_INFO = {
+    '11215': {name:'광진구', color:'#4f8aff'},
+    '11200': {name:'성동구', color:'#27c97a'},
+    '11680': {name:'강남구', color:'#f5a623'},
+    '11650': {name:'서초구', color:'#a78bfa'},
+    '11710': {name:'송파구', color:'#fb923c'},
+    '11620': {name:'관악구', color:'#f87171'},
+    '11110': {name:'종로구', color:'#38bdf8'},
+    '11140': {name:'중구',   color:'#34d399'},
+    '11170': {name:'용산구', color:'#c084fc'},
+    '11230': {name:'동대문구',color:'#fb7185'},
+    '11260': {name:'중랑구', color:'#fbbf24'},
+    '11290': {name:'성북구', color:'#a3e635'},
+    '11305': {name:'강북구', color:'#22d3ee'},
+    '11320': {name:'도봉구', color:'#818cf8'},
+    '11350': {name:'노원구', color:'#f472b6'},
+    '11380': {name:'은평구', color:'#86efac'},
+    '11410': {name:'서대문구',color:'#fcd34d'},
+    '11440': {name:'마포구', color:'#67e8f9'},
+    '11470': {name:'양천구', color:'#d8b4fe'},
+    '11500': {name:'강서구', color:'#fca5a5'},
+    '11530': {name:'구로구', color:'#6ee7b7'},
+    '11545': {name:'금천구', color:'#93c5fd'},
+    '11560': {name:'영등포구',color:'#fdba74'},
+    '11590': {name:'동작구', color:'#c4b5fd'},
+    '11740': {name:'강동구', color:'#86efac'},
+  };
+  const gu = GU_INFO[code] || {name: code, color:'#4f8aff'};
 
   // 캐시 확인 (1시간)
   const cached = todayTradesCache[code];
@@ -3653,7 +3644,7 @@ function renderTodayTrades(trades, gu) {
   const oldestDate = recentTrades[recentTrades.length - 1]?.dealDate || latestDate;
 
   document.getElementById('re-today-desc').textContent =
-    `최근 10일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · ${gu?.name || ''} ${recentTrades.length}건`;
+    `최근 10일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · ${gu?.name || '광진구'} ${recentTrades.length}건`;
 
   checkReAlerts(recentTrades);
   list.innerHTML = recentTrades.map(t => `
@@ -3674,8 +3665,8 @@ function renderTodayTrades(trades, gu) {
 async function loadTodayTrades() {
   const btn = document.getElementById('re-today-refresh-btn');
   if (btn) { btn.textContent = '↺ 로딩중…'; btn.disabled = true; }
-  todayTradesCache = {};  // 캐시 초기화
-  if (todayActiveGu) await loadTodayGuTrades(todayActiveGu);
+  todayTradesCache = {}; // 캐시 초기화
+  await loadTodayGuTrades('11215'); // 광진구
   if (btn) { btn.textContent = '↺ 새로고침'; btn.disabled = false; }
 }
 
