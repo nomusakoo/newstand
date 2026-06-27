@@ -3640,7 +3640,7 @@ function renderTodayTrades(trades, gu) {
         parseInt(t.dealDate.slice(4,6)) - 1,
         parseInt(t.dealDate.slice(6,8))
       ).getTime();
-      return d >= cutoffMs;
+      return d >= cutoffMs && t.dong === '자양동'; // 자양동 필터
     })
     .sort((a, b) => b.amount - a.amount); // 가격 내림차순
 
@@ -3649,7 +3649,7 @@ function renderTodayTrades(trades, gu) {
   const oldestDate = recentTrades[recentTrades.length - 1]?.dealDate || latestDate;
 
   document.getElementById('re-today-desc').textContent =
-    `최근 10일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · ${gu?.name || '광진구'} ${recentTrades.length}건`;
+    `최근 10일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · 광진구 자양동 ${recentTrades.length}건`;
 
   checkReAlerts(recentTrades);
   list.innerHTML = recentTrades.map(t => `
