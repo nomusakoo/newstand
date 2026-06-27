@@ -2616,15 +2616,15 @@ function renderInsightCardSb(row, type) {
         title="삭제">✕</button>
     </div>
     ${body ? `<div class="insight-body">${body}</div>` : ''}
-    <div style="display:flex;flex-direction:column;gap:5px;margin-top:2px;">
+    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
       ${row.source_url ? `
       <a href="${row.source_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-        style="display:inline-flex;align-items:center;gap:3px;align-self:flex-start;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(56,189,248,.15);color:#38bdf8;border:1px solid rgba(56,189,248,.35);text-decoration:none;transition:all .15s;white-space:nowrap;"
+        style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(56,189,248,.15);color:#38bdf8;border:1px solid rgba(56,189,248,.35);text-decoration:none;transition:all .15s;white-space:nowrap;min-height:36px;"
         onmouseover="this.style.background='rgba(56,189,248,.28)'"
         onmouseout="this.style.background='rgba(56,189,248,.15)'"
-      >↗ 원문</a>` : ''}
+      >↗ 원문 보기</a>` : ''}
       <a href="https://blog.naver.com/hrninfo" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-        style="display:inline-flex;align-items:center;gap:3px;align-self:flex-start;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(3,199,90,.12);color:#03c75a;border:1px solid rgba(3,199,90,.3);text-decoration:none;transition:all .15s;white-space:nowrap;"
+        style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(3,199,90,.12);color:#03c75a;border:1px solid rgba(3,199,90,.3);text-decoration:none;transition:all .15s;white-space:nowrap;min-height:36px;"
         onmouseover="this.style.background='rgba(3,199,90,.22)'"
         onmouseout="this.style.background='rgba(3,199,90,.12)'"
       >📝 네이버 블로그</a>
