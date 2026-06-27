@@ -3534,6 +3534,9 @@ async function selectTodayGu(code) {
   await loadTodayGuTrades(code);
 }
 
+const RE_API_KEY  = '88a33daa28380c66fdde8cd836e6d709fa23f9e9d6356362c0dacf8a639c503a';
+const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
+
 async function loadTodayGuTrades(code) {
   const list = document.getElementById('re-today-list');
   const gu   = TODAY_GU.find(g => g.code === code);
@@ -5652,8 +5655,6 @@ function renderMacroCard(id, price, chgPct) {
 /* ══════════════════════════════════════════════════════════
    부동산 JS
 ══════════════════════════════════════════════════════════ */
-const RE_API_KEY  = '88a33daa28380c66fdde8cd836e6d709fa23f9e9d6356362c0dacf8a639c503a';
-const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
 
 /* ── 연/월 select 자동 생성 ──────────────────────────────── */
 (function initReDateSelects() {
