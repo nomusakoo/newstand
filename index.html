@@ -1154,7 +1154,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     </div>
     <!-- 거래 목록 -->
     <div class="re-today-list" id="re-today-list">
-      <div class="re-loading">로딩 중…</div>
+      <div class="re-loading"><div class="spinner"></div>부동산 탭 클릭 시 로드됩니다.</div>
     </div>
   </div>
 
@@ -1992,7 +1992,6 @@ function switchTab(tabName) {
     setTimeout(() => {
       initSeoulMap();
       loadTodayTrades(); // 광진구 자동 로드
-      if (!todayActiveGu) selectTodayGu('11215');
     }, 50);
   }
 }
@@ -3378,8 +3377,7 @@ async function syncTodayGuFromSb() {
   if (saved?.length) {
     TODAY_GU = saved;
     try { localStorage.setItem(TODAY_GU_KEY, JSON.stringify(saved)); } catch(e) {}
-    initTodayTabs(); // 탭 UI 갱신
-    return true;
+    return true; // 탭 UI는 loadTodayTrades로 처리
   }
   return false;
 }
@@ -3408,7 +3406,7 @@ function openGuEditModal() {
 
 function closeGuEditModal(e) {
   if (e && e.target !== document.getElementById('gu-edit-modal-bg')) return;
-  document.getElementById('gu-edit-modal-bg').classList.remove('open');
+  document.getElementById('gu-edit-modal-bg')?.classList.remove('open');
 }
 
 function renderGuSelectGrid() {
@@ -3469,7 +3467,7 @@ function saveGuEdit() {
   initTodayTabs();
   document.getElementById('re-today-list').innerHTML =
     '<div class="re-loading">자치구 탭을 클릭하면 최신 거래가 표시됩니다.</div>';
-  document.getElementById('gu-edit-modal-bg').classList.remove('open');
+  document.getElementById('gu-edit-modal-bg')?.classList.remove('open');
   showToast('자치구 목록이 저장됐어요.');
 }
 
@@ -3560,7 +3558,8 @@ async function loadTodayGuTrades(code) {
   }
 
   const fetchMonth = async ({year, month}) => {
-    const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}`;
+    // JSON 형식으로 요청 (_type=json)
+    const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${RE_API_KEY}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${year}${month}&_type=json`;
     const url    = `${workerUrl}?url=${encodeURIComponent(rawUrl)}`;
     try {
       const res  = await fetch(url);
@@ -3568,15 +3567,16 @@ async function loadTodayGuTrades(code) {
         console.warn(`[부동산 API] ${year}${month} HTTP ${res.status}`);
         return [];
       }
-      const text = await res.text();
-      // API 오류 응답 체크
-      if (text.includes('<resultCode>') && !text.includes('<resultCode>00</resultCode>')) {
-        const msg = text.match(/<resultMsg>(.*?)<\/resultMsg>/)?.[1] || '알 수 없는 오류';
-        console.warn(`[부동산 API] ${year}${month} 오류: ${msg}`);
+      const json = await res.json();
+      const rc   = json?.response?.header?.resultCode;
+      if (rc !== '000' && rc !== '00') {
+        console.warn(`[부동산 API] ${year}${month} 오류코드: ${rc}`, json?.response?.header?.resultMsg);
         return [];
       }
-      const xml = new DOMParser().parseFromString(text, 'text/xml');
-      return [...xml.querySelectorAll('item')];
+      const items = json?.response?.body?.items?.item;
+      if (!items) return [];
+      // 단건일 때 배열로 감싸기
+      return Array.isArray(items) ? items : [items];
     } catch(e) {
       console.warn(`[부동산 API] ${year}${month} 실패:`, e.message);
       return [];
@@ -3589,7 +3589,7 @@ async function loadTodayGuTrades(code) {
     if (!allItems.length) {
       list.innerHTML = `<div class="re-loading">
         거래 데이터가 없습니다.<br>
-        <small style="opacity:.7">브라우저 콘솔(F12)에서 오류 내용을 확인해보세요.</small>
+        <small style="opacity:.7">F12 콘솔에서 [부동산 API] 오류 내용을 확인해보세요.</small>
       </div>`;
       return;
     }
@@ -3597,21 +3597,24 @@ async function loadTodayGuTrades(code) {
     todayTradesCache[code] = {ts: Date.now(), trades};
     renderTodayTrades(trades, gu);
   } catch(e) {
+    console.error('[부동산] 처리 실패:', e);
     list.innerHTML = `<div class="re-loading">⚠️ ${e.message}</div>`;
   }
 }
 
 function parseTradeItems(items) {
-  const g = (el, tag) => el.querySelector(tag)?.textContent?.trim() || '';
+  // JSON 응답 객체 직접 파싱
   return items.map(item => ({
-    aptNm:    g(item,'aptNm'),
-    dong:     g(item,'umdNm'),
-    amount:   parseInt(g(item,'dealAmount').replace(/,/g,'')||'0'),
-    area:     parseFloat(g(item,'excluUseAr')||'0'),
-    floor:    g(item,'floor'),
-    built:    g(item,'buildYear'),
-    dealDate: `${g(item,'dealYear')}${g(item,'dealMonth').padStart(2,'0')}${g(item,'dealDay').padStart(2,'0')}`,
-  })).sort((a,b) => b.dealDate.localeCompare(a.dealDate));
+    aptNm:    String(item.aptNm || '').trim(),
+    dong:     String(item.umdNm || '').trim(),
+    amount:   parseInt(String(item.dealAmount || '0').replace(/,/g, '')),
+    area:     parseFloat(item.excluUseAr || 0),
+    floor:    String(item.floor || ''),
+    built:    String(item.buildYear || ''),
+    dealDate: `${item.dealYear}${String(item.dealMonth).padStart(2,'0')}${String(item.dealDay).padStart(2,'0')}`,
+  }))
+  .filter(t => t.aptNm && t.amount > 0)
+  .sort((a,b) => b.dealDate.localeCompare(a.dealDate));
 }
 
 function renderTodayTrades(trades, gu) {
