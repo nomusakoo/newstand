@@ -3987,8 +3987,9 @@ async function fetchStockQuote(stock) {
     const w52High = meta.fiftyTwoWeekHigh ?? null;
     const w52Low  = meta.fiftyTwoWeekLow  ?? null;
     const data = {
-      code:    stock.code,
-      name:    stock.name || meta.shortName || meta.longName,
+      code:     stock.code,
+      currency: meta.currency || 'KRW',
+      name:     stock.name || meta.shortName || meta.longName,
       price, chgPct,
       rsi:    calcRSI(closes, 14),
       sma5:   calcSMA(closes, 5),
@@ -4305,15 +4306,17 @@ function renderStockGroups(tab, list, dataArr) {
       const chgCls = d.chgPct>0?'val-up':d.chgPct<0?'val-dn':'';
       const chgStr = (d.chgPct>=0?'▲':'▼')+Math.abs(d.chgPct).toFixed(2)+'%';
       const rsiBar = d.rsi!=null?`<div class="rsi-bar-wrap"><div class="rsi-bar" style="width:${d.rsi}%;background:${d.rsi<30?'var(--green)':d.rsi>70?'var(--red)':'var(--accent)'}"></div></div>`:'';
-      const fmtP   = /^\d{6}$/.test(stock.code)
-        ? d.price?.toLocaleString('ko-KR')
-        : '$'+d.price?.toFixed(2);
-      const yahooSymbol = /^\d{6}$/.test(stock.code) ? stock.code+'.KS' : stock.code;
-      const yahooUrl = `https://finance.yahoo.com/chart/${encodeURIComponent(yahooSymbol)}`;
+      // currency 기반 가격 포맷 (KRW=원화, 그 외=달러)
+      const isKrw    = (d.currency === 'KRW');
+      const fmtP     = isKrw
+        ? (d.price?.toLocaleString('ko-KR') + '원')
+        : ('$' + d.price?.toFixed(2));
+      const sym      = _krSymbolCache[stock.code] || (/^\d{6}$/.test(stock.code) ? stock.code+'.KS' : stock.code);
+      const yahooUrl = `https://finance.yahoo.com/chart/${encodeURIComponent(sym)}`;
       return `<tr style="cursor:pointer;" onclick="window.open('${yahooUrl}','_blank')">
         <td class="stock-name-cell" title="Yahoo Finance에서 차트 보기">${d.name||stock.name} <span style="font-size:9px;color:var(--muted);margin-left:2px;">↗</span></td>
         <td class="stock-code-cell">${stock.code}</td>
-        <td class="${chgCls}" style="font-family:var(--font-mono);font-weight:600;">${fmtP||'–'}<br><span style="font-size:10px;">${chgStr}</span></td>
+        <td class="${chgCls}" style="font-family:var(--font-mono);font-weight:600;text-align:right;">${fmtP||'–'}<br><span style="font-size:10px;">${chgStr}</span></td>
         <td>${sig(getMaSignal(d.price,d.sma20,/^\d{6}$/.test(stock.code)?d.sma60:d.sma50))}</td>
         <td>${sig(getDisparitySignal(d.disparity))}</td>
         <td>${d.goldenCross ? sig(getGoldenCrossSignal(d.goldenCross)) : '<span style="color:var(--muted)">–</span>'}</td>
@@ -4380,7 +4383,8 @@ function renderStockGroups(tab, list, dataArr) {
       if (!d) return `<div class="stock-mobile-card"><span class="stock-mobile-name">${stock.name}</span><span style="font-size:11px;color:var(--red);">데이터 없음</span></div>`;
       const chgCls2 = d.chgPct>0?'var(--red)':d.chgPct<0?'var(--accent)':'var(--dim)';
       const chgStr2 = (d.chgPct>=0?'▲':'▼')+Math.abs(d.chgPct).toFixed(2)+'%';
-      const fmtP2   = /^\d{6}$/.test(stock.code) ? d.price?.toLocaleString('ko-KR') : '$'+d.price?.toFixed(2);
+      const isKrw2  = (d.currency === 'KRW');
+      const fmtP2   = isKrw2 ? (d.price?.toLocaleString('ko-KR')+'원') : ('$'+d.price?.toFixed(2));
       const yahooSym2 = /^\d{6}$/.test(stock.code) ? stock.code+'.KS' : stock.code;
       const longSma2 = /^\d{6}$/.test(stock.code) ? d.sma60 : d.sma50;
       const sigs = [getMaSignal(d.price,d.sma20,longSma2), getRsiSignal(d.rsi), getMacdSignal(d.macd)].filter(Boolean);
@@ -5731,7 +5735,8 @@ function renderTop3(tab) {
     const sym      = _krSymbolCache[stock.code] || (isKr ? stock.code+'.KS' : stock.code);
     const chgColor = d.chgPct > 0 ? 'var(--red)' : d.chgPct < 0 ? 'var(--accent)' : 'var(--dim)';
     const chgStr   = d.chgPct != null ? (d.chgPct >= 0 ? '▲' : '▼') + Math.abs(d.chgPct).toFixed(2) + '%' : '–';
-    const fmtPrice = isKr
+    const isKrwT   = (d.currency === 'KRW');
+    const fmtPrice = isKrwT
       ? (d.price?.toLocaleString('ko-KR') + '원')
       : ('$' + d.price?.toFixed(2));
 
