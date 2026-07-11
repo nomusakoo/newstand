@@ -535,9 +535,10 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .re-trade-card{
   background:var(--ink);border:1px solid var(--border);border-radius:8px;
   padding:10px 12px;display:flex;flex-direction:column;gap:4px;
-  border-left:3px solid var(--border);transition:border-color .15s;
+  border-left:3px solid var(--border);transition:border-color .15s,transform .15s;
+  cursor:pointer;
 }
-.re-trade-card:hover{border-left-color:var(--accent);}
+.re-trade-card:hover{border-left-color:var(--accent);transform:translateX(3px);}
 .re-trade-apt{font-size:13px;font-weight:700;color:var(--bright);}
 .re-trade-info{font-size:11px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;}
 .re-trade-price{font-size:14px;font-weight:700;color:var(--accent2);margin-top:2px;}
@@ -3663,8 +3664,11 @@ function renderTodayTrades(trades, gu) {
   document.getElementById('re-today-desc').textContent =
     `최근 10일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · 광진구 자양동 ${recentTrades.length}건`;
 
-  list.innerHTML = recentTrades.map(t => `
-    <div class="re-trade-card" style="border-left-color:${gu?.color||'var(--accent)'}">
+  reTodayTrades    = recentTrades;
+  reTodayAllTrades = trades;
+
+  list.innerHTML = recentTrades.map((t,i) => `
+    <div class="re-trade-card" style="border-left-color:${gu?.color||'var(--accent)'}" onclick="openTodayAptDetail(${i})">
       <div class="re-trade-apt">${t.aptNm}</div>
       <div class="re-trade-info">
         <span>📍 ${t.dong}</span>
@@ -3676,6 +3680,25 @@ function renderTodayTrades(trades, gu) {
       <div class="re-trade-date">${fmt(t.dealDate)} 거래</div>
     </div>
   `).join('');
+}
+
+function openTodayAptDetail(idx) {
+  const t = reTodayTrades[idx];
+  if (!t) return;
+  const sameApt = reTodayAllTrades.filter(x => x.aptNm === t.aptNm && x.dong === t.dong);
+  reCurrentApt  = {
+    name:   t.aptNm,
+    dong:   t.dong,
+    built:  t.built,
+    trades: sameApt.length ? sameApt : [t],
+  };
+  reSelectedGu = {code: '11215', name: '광진구'};
+  rePyeong = 'all';
+  document.querySelectorAll('.gu-path').forEach(p => p.classList.remove('gu-active'));
+  document.getElementById('re-selected-gu').textContent = '광진구';
+  document.getElementById('re-list-panel').style.display   = 'none';
+  document.getElementById('re-detail-panel').style.display = 'block';
+  renderAptDetail();
 }
 
 async function loadTodayTrades() {
@@ -5774,6 +5797,8 @@ let rePeriod      = '6m';
 let rePyeong      = 'all';
 let reCurrentDong = 'all';
 let reAllTrades   = [];
+let reTodayTrades    = [];
+let reTodayAllTrades = [];
 
 
 const GU_DATA = [
