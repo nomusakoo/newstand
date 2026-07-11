@@ -539,6 +539,17 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   cursor:pointer;
 }
 .re-trade-card:hover{border-left-color:var(--accent);transform:translateX(3px);}
+.re-search-row{display:flex;gap:8px;margin-bottom:8px;}
+.re-search-row .sem-input{flex:1;}
+.re-search-status{font-size:11px;color:var(--dim);font-family:var(--font-mono);margin-bottom:8px;min-height:14px;}
+.re-detail-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+.re-watch-toggle-btn{
+  display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:6px;
+  font-size:12px;font-weight:600;background:var(--tag-bg);border:1px solid var(--border);
+  color:var(--dim);cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.re-watch-toggle-btn:hover{color:var(--bright);border-color:var(--muted);}
+.re-watch-toggle-btn.active{background:rgba(245,166,35,.15);border-color:var(--accent2);color:var(--accent2);}
 .re-trade-apt{font-size:13px;font-weight:700;color:var(--bright);}
 .re-trade-info{font-size:11px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;}
 .re-trade-price{font-size:14px;font-weight:700;color:var(--accent2);margin-top:2px;}
@@ -1118,6 +1129,29 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <div class="re-today-list" id="re-today-list">
       <div class="re-loading"><div class="spinner"></div>부동산 탭 클릭 시 로드됩니다.</div>
     </div>
+  </div>
+
+  <!-- 아파트 이름 검색 -->
+  <div class="re-today-wrap">
+    <div class="re-today-header">
+      <span class="re-title">🔍 아파트 검색</span>
+    </div>
+    <div class="re-search-row">
+      <input type="text" id="re-search-input" class="sem-input" placeholder="아파트 이름 입력 (예: 래미안, 자이…)"
+        onkeydown="if(event.key==='Enter') searchApts()">
+      <button class="sem-btn sem-btn-primary" onclick="searchApts()">검색</button>
+    </div>
+    <div class="re-search-status" id="re-search-status"></div>
+    <div id="re-search-results"></div>
+  </div>
+
+  <!-- 관심 아파트 -->
+  <div class="re-today-wrap" id="re-watch-wrap" style="display:none;">
+    <div class="re-today-header">
+      <span class="re-title">⭐ 관심 아파트</span>
+      <span class="re-today-desc" id="re-watch-count"></span>
+    </div>
+    <div class="re-today-list" id="re-watch-list"></div>
   </div>
 
   <div class="re-layout">
@@ -3316,6 +3350,8 @@ function initApp() {
   loadAllNews();
   scheduleAlertCheck(); // 종목 알림 체크
   renderPortfolio();     // 포트폴리오 초기 렌더
+  renderWatchList();      // 관심 아파트 초기 렌더
+  scheduleWatchCheck();   // 관심 아파트 신규 거래 체크
   // Supabase 설정 동기화 (비동기 — UI 블로킹 없이 백그라운드 실행)
   syncSettingsFromSb();
 }
@@ -3707,6 +3743,235 @@ async function loadTodayTrades() {
   todayTradesCache = {}; // 캐시 초기화
   await loadTodayGuTrades('11215'); // 광진구
   if (btn) { btn.textContent = '↺ 새로고침'; btn.disabled = false; }
+}
+
+/* ── 아파트 이름 검색 (서울 25개 자치구 전체 조회) ────────── */
+
+// 특정 자치구·특정 월들의 실거래 목록 조회 (loadAptList와 동일한 24시간 캐시 키 공유)
+async function fetchGuMonthsTrades(code, yyyymmList, workerUrl) {
+  const all = [];
+  for (const ym of yyyymmList) {
+    const cacheKey = `re_${code}_${ym}`;
+    const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+    if (cached && (Date.now() - cached.ts) < 24*60*60*1000) { all.push(...cached.data); continue; }
+    const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${reApiKey()}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${ym}&_type=json`;
+    const url = `${workerUrl}?url=${encodeURIComponent(rawUrl)}`;
+    try {
+      const res  = await fetch(url);
+      if (!res.ok) continue;
+      const json = await res.json();
+      const rc   = json?.response?.header?.resultCode;
+      if (rc !== '000' && rc !== '00') continue;
+      const rawItems = json?.response?.body?.items?.item;
+      if (!rawItems) continue;
+      const items  = Array.isArray(rawItems) ? rawItems : [rawItems];
+      const parsed = parseTradeItems(items);
+      try { localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), data:parsed})); } catch(e) {}
+      all.push(...parsed);
+    } catch(e) {
+      console.warn('[아파트 검색]', code, ym, e.message);
+    }
+  }
+  return all;
+}
+
+async function searchApts() {
+  const input = document.getElementById('re-search-input');
+  const query = input.value.trim();
+  const statusEl  = document.getElementById('re-search-status');
+  const resultsEl = document.getElementById('re-search-results');
+  if (!query) { showToast('아파트 이름을 입력해주세요.'); return; }
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  if (!workerUrl) { statusEl.textContent = '⚠️ Worker URL이 설정되지 않았습니다. (⚙️ 설정에서 등록)'; return; }
+
+  resultsEl.innerHTML = '';
+  const now = new Date();
+  const months = [0, -1].map(offset => {
+    const d = new Date(now.getFullYear(), now.getMonth()+offset, 1);
+    return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
+  });
+
+  let done = 0;
+  statusEl.textContent = `🔍 서울 25개 자치구 검색 중… (0/${ALL_GU_LIST.length})`;
+
+  const matches = [];
+  const batchSize = 5;
+  for (let i = 0; i < ALL_GU_LIST.length; i += batchSize) {
+    const batch = ALL_GU_LIST.slice(i, i + batchSize);
+    await Promise.all(batch.map(async gu => {
+      const guTrades = await fetchGuMonthsTrades(gu.code, months, workerUrl);
+      done++;
+      statusEl.textContent = `🔍 서울 25개 자치구 검색 중… (${done}/${ALL_GU_LIST.length})`;
+      const hit = guTrades.filter(t => t.aptNm.includes(query));
+      if (!hit.length) return;
+      const grouped = {};
+      hit.forEach(t => {
+        const key = t.aptNm + '|' + t.dong;
+        if (!grouped[key]) grouped[key] = {name:t.aptNm, dong:t.dong, built:t.built, guCode:gu.code, guName:gu.name, trades:[]};
+        grouped[key].trades.push(t);
+      });
+      matches.push(...Object.values(grouped));
+    }));
+  }
+  renderSearchResults(matches, query);
+}
+
+function renderSearchResults(matches, query) {
+  reSearchMatches = matches;
+  const statusEl  = document.getElementById('re-search-status');
+  const resultsEl = document.getElementById('re-search-results');
+  if (!matches.length) {
+    statusEl.textContent = `'${query}' 검색 결과가 없습니다. (최근 2개월 실거래 기준)`;
+    resultsEl.innerHTML = '';
+    return;
+  }
+  matches.sort((a,b) => {
+    const da = Math.max(...a.trades.map(t=>t.dealDate));
+    const db = Math.max(...b.trades.map(t=>t.dealDate));
+    return String(db).localeCompare(String(da));
+  });
+  statusEl.textContent = `'${query}' 검색 결과 ${matches.length}건 (최근 2개월 실거래 기준)`;
+  resultsEl.innerHTML = matches.map((m,i) => {
+    const prices = m.trades.map(t=>t.amount);
+    const maxP = Math.max(...prices);
+    const latestDate = [...m.trades].sort((a,b)=>b.dealDate.localeCompare(a.dealDate))[0].dealDate;
+    return `<div class="apt-card" onclick="openSearchAptDetail(${i})">
+      <div class="apt-name">${m.name}</div>
+      <div class="apt-meta">
+        <span>🏙️ ${m.guName} ${m.dong}</span>
+        <span>🏗 ${m.built||'?'}년</span>
+        <span>📋 ${m.trades.length}건</span>
+      </div>
+      <div class="apt-price">
+        <span style="color:var(--red);font-weight:700;">최고 ${fmtPrice(maxP)}</span>
+        <span style="color:var(--dim);"> · </span>
+        <span style="color:var(--text);">최근거래 ${latestDate.slice(0,4)}.${latestDate.slice(4,6)}.${latestDate.slice(6,8)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openSearchAptDetail(idx) {
+  const m = reSearchMatches[idx];
+  if (!m) return;
+  reCurrentApt = {name: m.name, dong: m.dong, built: m.built, trades: m.trades};
+  reSelectedGu = {code: m.guCode, name: m.guName};
+  rePyeong = 'all';
+  document.querySelectorAll('.gu-path').forEach(p => p.classList.remove('gu-active'));
+  document.getElementById('re-selected-gu').textContent = m.guName;
+  document.getElementById('re-list-panel').style.display   = 'none';
+  document.getElementById('re-detail-panel').style.display = 'block';
+  renderAptDetail();
+}
+
+/* ── 관심 아파트 등록/모니터링 ────────────────────────────── */
+
+function saveWatchedApts() { lsSetJSON(WATCH_KEY, watchedApts); }
+
+function findWatchIdx(name, dong, guCode) {
+  return watchedApts.findIndex(w => w.name===name && w.dong===dong && w.guCode===guCode);
+}
+
+function toggleWatchApt() {
+  const apt = reCurrentApt, gu = reSelectedGu;
+  if (!apt || !gu) return;
+  const idx = findWatchIdx(apt.name, apt.dong, gu.code);
+  if (idx >= 0) {
+    watchedApts.splice(idx, 1);
+    showToast(`☆ ${apt.name} 관심 해제됐어요.`);
+  } else {
+    const latest = [...apt.trades].sort((a,b)=>b.dealDate.localeCompare(a.dealDate))[0];
+    watchedApts.push({
+      name: apt.name, dong: apt.dong, guCode: gu.code, guName: gu.name,
+      lastAmount: latest?.amount ?? null, lastDealDate: latest?.dealDate ?? null,
+      addedAt: Date.now(),
+    });
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    showToast(`⭐ ${apt.name} 관심 등록됐어요. 새 거래가 생기면 알려드릴게요.`);
+  }
+  saveWatchedApts();
+  renderAptDetail();
+  renderWatchList();
+}
+
+function renderWatchList() {
+  const wrap = document.getElementById('re-watch-wrap');
+  const list = document.getElementById('re-watch-list');
+  if (!wrap || !list) return;
+  if (!watchedApts.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  document.getElementById('re-watch-count').textContent = `${watchedApts.length}건`;
+  list.innerHTML = watchedApts.map((w,i) => `
+    <div class="re-trade-card" onclick="openWatchedAptDetail(${i})">
+      <div class="re-trade-apt">⭐ ${w.name}</div>
+      <div class="re-trade-info"><span>🏙️ ${w.guName} ${w.dong}</span></div>
+      <div class="re-trade-price">${w.lastAmount ? fmtPrice(w.lastAmount) : '거래 내역 조회 전'}</div>
+      <div class="re-trade-date">${w.lastDealDate ? `${w.lastDealDate.slice(0,4)}.${w.lastDealDate.slice(4,6)}.${w.lastDealDate.slice(6,8)} 최근 거래` : '모니터링 중'}</div>
+    </div>
+  `).join('');
+}
+
+async function openWatchedAptDetail(idx) {
+  const w = watchedApts[idx];
+  if (!w) return;
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  if (!workerUrl) { showToast('⚠️ Worker URL이 설정되지 않았습니다.'); return; }
+  showToast(`${w.name} 불러오는 중…`);
+  const now = new Date();
+  const months = [0, -1, -2].map(offset => {
+    const d = new Date(now.getFullYear(), now.getMonth()+offset, 1);
+    return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
+  });
+  const trades = (await fetchGuMonthsTrades(w.guCode, months, workerUrl))
+    .filter(t => t.aptNm === w.name && t.dong === w.dong);
+  reCurrentApt = {
+    name: w.name, dong: w.dong, built: trades[0]?.built || '',
+    trades: trades.length ? trades : [{aptNm:w.name, dong:w.dong, amount:w.lastAmount||0, area:0, floor:'', built:'', dealDate:w.lastDealDate||'19000101'}],
+  };
+  reSelectedGu = {code: w.guCode, name: w.guName};
+  rePyeong = 'all';
+  document.querySelectorAll('.gu-path').forEach(p => p.classList.remove('gu-active'));
+  document.getElementById('re-selected-gu').textContent = w.guName;
+  document.getElementById('re-list-panel').style.display   = 'none';
+  document.getElementById('re-detail-panel').style.display = 'block';
+  renderAptDetail();
+}
+
+async function checkWatchedApts() {
+  if (!watchedApts.length) return;
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  if (!workerUrl) return;
+  const now = new Date();
+  const ym  = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`;
+  const byGu = {};
+  watchedApts.forEach((w,i) => { (byGu[w.guCode] = byGu[w.guCode] || []).push(i); });
+
+  let changed = false;
+  for (const guCode of Object.keys(byGu)) {
+    const trades = await fetchGuMonthsTrades(guCode, [ym], workerUrl);
+    byGu[guCode].forEach(i => {
+      const w = watchedApts[i];
+      const hits = trades.filter(t => t.aptNm === w.name && t.dong === w.dong);
+      if (!hits.length) return;
+      const latest = [...hits].sort((a,b)=>b.dealDate.localeCompare(a.dealDate))[0];
+      if (!w.lastDealDate || latest.dealDate > w.lastDealDate) {
+        changed = true;
+        w.lastDealDate = latest.dealDate;
+        w.lastAmount   = latest.amount;
+        const msg = `${w.name} 신규 거래 ${fmtPrice(latest.amount)} (${latest.dealDate.slice(0,4)}.${latest.dealDate.slice(4,6)}.${latest.dealDate.slice(6,8)})`;
+        showToast(`🏷️ ${msg}`);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('🏷️ 관심 아파트 신규 거래', {body: msg, icon: '/favicon.ico'});
+        }
+      }
+    });
+  }
+  if (changed) { saveWatchedApts(); renderWatchList(); }
+}
+
+function scheduleWatchCheck() {
+  clearInterval(watchCheckTimer);
+  watchCheckTimer = setInterval(checkWatchedApts, 10 * 60 * 1000);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -5799,6 +6064,11 @@ let reCurrentDong = 'all';
 let reAllTrades   = [];
 let reTodayTrades    = [];
 let reTodayAllTrades = [];
+let reSearchMatches  = [];
+
+const WATCH_KEY = 'ns_watched_apts';
+let watchedApts = lsGetJSON(WATCH_KEY, []);
+let watchCheckTimer = null;
 
 
 const GU_DATA = [
@@ -6090,7 +6360,12 @@ function renderAptDetail() {
   const prices=filtered.map(t=>t.amount);
   const maxP=Math.max(...prices), minP=Math.min(...prices), avgP=Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
   document.getElementById('re-detail-content').innerHTML = `
-    <div class="re-detail-title">${apt.name}</div>
+    <div class="re-detail-title-row">
+      <div class="re-detail-title">${apt.name}</div>
+      <button class="re-watch-toggle-btn ${findWatchIdx(apt.name,apt.dong,reSelectedGu?.code)>=0?'active':''}" onclick="toggleWatchApt()">
+        ${findWatchIdx(apt.name,apt.dong,reSelectedGu?.code)>=0 ? '★ 관심 등록됨' : '☆ 관심 등록'}
+      </button>
+    </div>
     <div class="re-detail-meta">📍 ${reSelectedGu?.name} ${apt.dong||''} &nbsp;|&nbsp; 🏗 준공 ${built||'?'}년 ${age?`(${age}년차)`:''} &nbsp;|&nbsp; 🔨 재건축 예상 <strong>${rebuildYear?rebuildYear+'년':'–'}</strong></div>
     <div class="re-info-grid">
       <div class="re-info-item"><div class="re-info-label">최고 거래가</div><div class="re-info-val yl">${fmtPrice(maxP)}</div></div>
