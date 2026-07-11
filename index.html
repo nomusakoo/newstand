@@ -6433,7 +6433,8 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
   for (let i=0; i<yyyymmList.length; i+=batchSize) {
     const batch = yyyymmList.slice(i, i+batchSize);
     const results = await Promise.allSettled(batch.map(async ym => {
-      const trendCacheKey = `re_trend_${guCode}_${ym}`;
+      // v2: 층(floor) 필드 추가로 캐시 키 버전 분리 (구 캐시에는 층 정보가 없음)
+      const trendCacheKey = `re_trend2_${guCode}_${ym}`;
       const trendCached   = JSON.parse(localStorage.getItem(trendCacheKey) || 'null');
       if (trendCached && (Date.now() - trendCached.ts) < 24*60*60*1000) {
         return trendCached.data.filter(t => t.aptNm === aptName).map(t => ({
