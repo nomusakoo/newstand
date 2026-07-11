@@ -3969,9 +3969,36 @@ async function checkWatchedApts() {
   if (changed) { saveWatchedApts(); renderWatchList(); }
 }
 
+const WATCH_LAST_CHECK_KEY = 'ns_watch_last_check';
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function msUntilNext9AM() {
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+  if (now >= target) target.setDate(target.getDate() + 1);
+  return target.getTime() - now.getTime();
+}
+
+async function runScheduledWatchCheck() {
+  await checkWatchedApts();
+  localStorage.setItem(WATCH_LAST_CHECK_KEY, todayStr());
+  scheduleWatchCheck();
+}
+
 function scheduleWatchCheck() {
-  clearInterval(watchCheckTimer);
-  watchCheckTimer = setInterval(checkWatchedApts, 10 * 60 * 1000);
+  clearTimeout(watchCheckTimer);
+  const now = new Date();
+  const lastCheck = localStorage.getItem(WATCH_LAST_CHECK_KEY);
+  // 오전 9시 이후에 앱을 열었는데 오늘 아직 체크 안 했다면 즉시 한 번 체크
+  if (lastCheck !== todayStr() && now.getHours() >= 9) {
+    runScheduledWatchCheck();
+    return;
+  }
+  watchCheckTimer = setTimeout(runScheduledWatchCheck, msUntilNext9AM());
 }
 
 /* ══════════════════════════════════════════════════════════
