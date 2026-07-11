@@ -554,6 +554,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .re-trade-info{font-size:11px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;}
 .re-trade-price{font-size:14px;font-weight:700;color:var(--accent2);margin-top:2px;}
 .re-trade-date{font-size:10px;color:var(--muted);font-family:var(--font-mono);}
+.re-trade-addr{font-size:10px;color:var(--muted);}
 
 /* ─── 주식 탭 ────────────────────────────────────────────── */
 .stock-subtab-bar{display:flex;align-items:center;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px;}
@@ -891,9 +892,11 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 .apt-card:hover{border-color:var(--accent);transform:translateX(3px);}
 .apt-name{font-size:13px;font-weight:700;color:var(--bright);margin-bottom:3px;}
 .apt-meta{font-size:11px;color:var(--dim);display:flex;gap:10px;flex-wrap:wrap;}
+.apt-addr{font-size:10px;color:var(--muted);margin-top:2px;}
 .apt-price{font-size:13px;font-weight:700;color:var(--accent2);margin-top:4px;}
 .re-detail-title{font-size:15px;font-weight:700;color:var(--bright);margin-bottom:4px;}
-.re-detail-meta{font-size:12px;color:var(--dim);margin-bottom:14px;line-height:1.8;}
+.re-detail-meta{font-size:12px;color:var(--dim);margin-bottom:4px;line-height:1.8;}
+.re-detail-addr{font-size:11px;color:var(--muted);margin-bottom:14px;}
 .re-tab-bar{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;}
 .re-tab{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;background:var(--tag-bg);border:1px solid var(--border);color:var(--dim);cursor:pointer;transition:all .15s;}
 .re-tab.active{background:rgba(79,138,255,.15);color:var(--accent);border-color:var(--accent);}
@@ -3660,10 +3663,27 @@ function parseTradeItems(items) {
     area:     parseFloat(item.excluUseAr || 0),
     floor:    String(item.floor || ''),
     built:    String(item.buildYear || ''),
+    aptDong:    String(item.aptDong || '').trim(),
+    jibun:      String(item.jibun || '').trim(),
+    roadNm:     String(item.roadNm || '').trim(),
+    roadNmBonbun: String(item.roadNmBonbun || '').trim(),
+    roadNmBubun:  String(item.roadNmBubun || '').trim(),
     dealDate: `${item.dealYear}${String(item.dealMonth).padStart(2,'0')}${String(item.dealDay).padStart(2,'0')}`,
   }))
   .filter(t => t.aptNm && t.amount > 0)
   .sort((a,b) => b.dealDate.localeCompare(a.dealDate));
+}
+
+// 지번/도로명 주소 조합 (도로명이 있으면 우선, 없으면 지번 주소로 대체)
+function formatAddress(t) {
+  if (!t) return '';
+  if (t.roadNm) {
+    const bonbun = parseInt(t.roadNmBonbun || '0', 10) || 0;
+    const bubun  = parseInt(t.roadNmBubun || '0', 10) || 0;
+    return `${t.roadNm} ${bonbun}${bubun > 0 ? '-' + bubun : ''}`.trim();
+  }
+  if (t.jibun) return `${t.dong || ''} ${t.jibun}`.trim();
+  return '';
 }
 
 function renderTodayTrades(trades, gu) {
@@ -3711,7 +3731,9 @@ function renderTodayTrades(trades, gu) {
         <span>${t.area.toFixed(1)}㎡ (${Math.round(t.area/3.3)}평)</span>
         <span>${t.floor}층</span>
         <span>🏗 ${t.built}년</span>
+        ${t.aptDong ? `<span>🏢 ${t.aptDong}동</span>` : ''}
       </div>
+      ${formatAddress(t) ? `<div class="re-trade-addr">${formatAddress(t)}</div>` : ''}
       <div class="re-trade-price">${fmtPrice(t.amount)}</div>
       <div class="re-trade-date">${fmt(t.dealDate)} 거래</div>
     </div>
@@ -3807,7 +3829,8 @@ async function searchApts() {
       const grouped = {};
       hit.forEach(t => {
         const key = t.aptNm + '|' + t.dong;
-        if (!grouped[key]) grouped[key] = {name:t.aptNm, dong:t.dong, built:t.built, guCode:gu.code, guName:gu.name, trades:[]};
+        if (!grouped[key]) grouped[key] = {name:t.aptNm, dong:t.dong, built:t.built, addr:formatAddress(t), guCode:gu.code, guName:gu.name, trades:[]};
+        if (!grouped[key].addr) grouped[key].addr = formatAddress(t);
         grouped[key].trades.push(t);
       });
       matches.push(...Object.values(grouped));
@@ -3842,6 +3865,7 @@ function renderSearchResults(matches, query) {
         <span>🏗 ${m.built||'?'}년</span>
         <span>📋 ${m.trades.length}건</span>
       </div>
+      ${m.addr ? `<div class="apt-addr">${m.addr}</div>` : ''}
       <div class="apt-price">
         <span style="color:var(--red);font-weight:700;">최고 ${fmtPrice(maxP)}</span>
         <span style="color:var(--dim);"> · </span>
@@ -6267,15 +6291,7 @@ async function loadAptList(code, guName, year, month) {
     const rawItems = json?.response?.body?.items?.item;
     if (!rawItems) { panel.innerHTML = '<div class="re-loading">해당 기간 거래 데이터가 없습니다.</div>'; return; }
     const items = Array.isArray(rawItems) ? rawItems : [rawItems];
-    reAllTrades = items.map(item => ({
-      aptNm:    String(item.aptNm || '').trim(),
-      dong:     String(item.umdNm || '').trim(),
-      built:    String(item.buildYear || ''),
-      amount:   parseInt(String(item.dealAmount || '0').replace(/,/g, '')),
-      area:     parseFloat(item.excluUseAr || 0),
-      floor:    String(item.floor || ''),
-      dealDate: `${item.dealYear}${String(item.dealMonth).padStart(2,'0')}${String(item.dealDay).padStart(2,'0')}`,
-    })).filter(t => t.aptNm && t.amount > 0);
+    reAllTrades = parseTradeItems(items);
     // 24시간 캐싱
     try { localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), data:reAllTrades})); } catch(e) {}
     reCurrentDong = 'all';
@@ -6301,7 +6317,8 @@ function groupAndRender() {
   const aptMap = {};
   filtered.forEach(t => {
     if (!t.aptNm) return;
-    if (!aptMap[t.aptNm]) aptMap[t.aptNm] = {name:t.aptNm, dong:t.dong, built:t.built, trades:[]};
+    if (!aptMap[t.aptNm]) aptMap[t.aptNm] = {name:t.aptNm, dong:t.dong, built:t.built, addr:formatAddress(t), trades:[]};
+    if (!aptMap[t.aptNm].addr) aptMap[t.aptNm].addr = formatAddress(t);
     aptMap[t.aptNm].trades.push(t);
   });
   reCurrentApts = Object.values(aptMap);
@@ -6333,7 +6350,7 @@ function renderAptCards() {
         <span style="font-size:11px;color:var(--dim);">
           ${t.dealDate.slice(0,4)}.${t.dealDate.slice(4,6)}.${t.dealDate.slice(6,8)}
           &nbsp;·&nbsp;${t.area?.toFixed(0)||'?'}㎡(${Math.round((t.area||0)/3.3)}평)
-          &nbsp;·&nbsp;${t.floor||'?'}층
+          &nbsp;·&nbsp;${t.floor||'?'}층${t.aptDong ? `&nbsp;·&nbsp;${t.aptDong}동` : ''}
         </span>
         <span style="font-size:13px;font-weight:700;color:var(--accent2);">${fmtPrice(t.amount)}</span>
       </div>`).join('');
@@ -6344,6 +6361,7 @@ function renderAptCards() {
         <span>🏗 ${apt.built||'?'}년 준공</span>
         <span>📋 ${apt.trades.length}건</span>
       </div>
+      ${apt.addr ? `<div class="apt-addr">${apt.addr}</div>` : ''}
       <div class="apt-price" style="margin-bottom:8px;">
         <span style="color:var(--red);font-weight:700;">최고 ${fmtPrice(maxP)}</span>
         <span style="color:var(--dim);"> · </span>
@@ -6379,6 +6397,7 @@ function closeReDetail() {
 
 function renderAptDetail() {
   const apt=reCurrentApt, built=parseInt(apt.built)||0;
+  const addr=apt.addr || formatAddress(apt.trades[0]);
   const rebuildYear=built?built+40:null, age=built?new Date().getFullYear()-built:null;
   const pyeongMap={};
   apt.trades.forEach(t=>{const py=t.area?Math.round(t.area/3.3)+'평':'?평';if(!pyeongMap[py])pyeongMap[py]=[];pyeongMap[py].push(t);});
@@ -6394,6 +6413,7 @@ function renderAptDetail() {
       </button>
     </div>
     <div class="re-detail-meta">📍 ${reSelectedGu?.name} ${apt.dong||''} &nbsp;|&nbsp; 🏗 준공 ${built||'?'}년 ${age?`(${age}년차)`:''} &nbsp;|&nbsp; 🔨 재건축 예상 <strong>${rebuildYear?rebuildYear+'년':'–'}</strong></div>
+    ${addr ? `<div class="re-detail-addr">🏠 ${addr}</div>` : ''}
     <div class="re-info-grid">
       <div class="re-info-item"><div class="re-info-label">최고 거래가</div><div class="re-info-val yl">${fmtPrice(maxP)}</div></div>
       <div class="re-info-item"><div class="re-info-label">평균 거래가</div><div class="re-info-val ac">${fmtPrice(avgP)}</div></div>
@@ -6433,13 +6453,16 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
   for (let i=0; i<yyyymmList.length; i+=batchSize) {
     const batch = yyyymmList.slice(i, i+batchSize);
     const results = await Promise.allSettled(batch.map(async ym => {
-      // v2: 층(floor) 필드 추가로 캐시 키 버전 분리 (구 캐시에는 층 정보가 없음)
-      const trendCacheKey = `re_trend2_${guCode}_${ym}`;
+      // v3: 동/지번/도로명 필드 추가로 캐시 키 버전 분리 (구 캐시에는 해당 정보가 없음)
+      const trendCacheKey = `re_trend3_${guCode}_${ym}`;
       const trendCached   = JSON.parse(localStorage.getItem(trendCacheKey) || 'null');
+      const pick = t => ({
+        amount: t.amount, area: t.area, floor: t.floor, dealDate: t.dealDate,
+        aptDong: t.aptDong, jibun: t.jibun, roadNm: t.roadNm,
+        roadNmBonbun: t.roadNmBonbun, roadNmBubun: t.roadNmBubun, dong: t.dong,
+      });
       if (trendCached && (Date.now() - trendCached.ts) < 24*60*60*1000) {
-        return trendCached.data.filter(t => t.aptNm === aptName).map(t => ({
-          amount: t.amount, area: t.area, floor: t.floor, dealDate: t.dealDate,
-        }));
+        return trendCached.data.filter(t => t.aptNm === aptName).map(pick);
       }
       const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${reApiKey()}&pageNo=1&numOfRows=1000&LAWD_CD=${guCode}&DEAL_YMD=${ym}&_type=json`;
       const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
@@ -6448,15 +6471,9 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
       const rawItems = json?.response?.body?.items?.item;
       if (!rawItems) return [];
       const items = Array.isArray(rawItems) ? rawItems : [rawItems];
-      const allItems = items.map(item=>({
-        aptNm:    String(item.aptNm||'').trim(),
-        amount:   parseInt(String(item.dealAmount||'0').replace(/,/g,'')),
-        area:     parseFloat(item.excluUseAr||0),
-        floor:    String(item.floor||''),
-        dealDate: `${item.dealYear}${String(item.dealMonth).padStart(2,'0')}${String(item.dealDay).padStart(2,'0')}`,
-      })).filter(t=>t.aptNm && t.amount>0);
+      const allItems = parseTradeItems(items);
       try { localStorage.setItem(trendCacheKey, JSON.stringify({ts:Date.now(), data:allItems})); } catch(e) {}
-      return allItems.filter(t=>t.aptNm===aptName).map(t=>({amount:t.amount,area:t.area,floor:t.floor,dealDate:t.dealDate}));
+      return allItems.filter(t=>t.aptNm===aptName).map(pick);
     }));
     results.forEach(r=>{ if(r.status==='fulfilled') allTrades.push(...r.value); });
   }
@@ -6473,10 +6490,10 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
       tableWrap.innerHTML = '<div style="text-align:center;padding:16px;color:var(--dim);font-size:12px;">해당 기간 거래 데이터가 없습니다.</div>';
     } else {
       const rows = [...periodTrades].sort((a,b)=>b.dealDate.localeCompare(a.dealDate));
-      tableWrap.innerHTML = `<table class="re-table"><thead><tr><th>거래일</th><th>면적(㎡)</th><th>층</th><th>거래가</th></tr></thead><tbody>
+      tableWrap.innerHTML = `<table class="re-table"><thead><tr><th>거래일</th><th>면적(㎡)</th><th>층</th><th>동</th><th>거래가</th></tr></thead><tbody>
         ${rows.map(t=>`
         <tr><td>${t.dealDate.slice(0,4)}.${t.dealDate.slice(4,6)}.${t.dealDate.slice(6,8)}</td>
-        <td>${t.area?.toFixed(1)||'–'}</td><td>${t.floor||'–'}층</td><td class="price-cell">${fmtPrice(t.amount)}</td></tr>`).join('')}
+        <td>${t.area?.toFixed(1)||'–'}</td><td>${t.floor||'–'}층</td><td>${t.aptDong||'–'}</td><td class="price-cell">${fmtPrice(t.amount)}</td></tr>`).join('')}
       </tbody></table>`;
     }
   }
