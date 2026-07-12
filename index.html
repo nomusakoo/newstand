@@ -3663,7 +3663,6 @@ function parseTradeItems(items) {
     area:     parseFloat(item.excluUseAr || 0),
     floor:    String(item.floor || ''),
     built:    String(item.buildYear || ''),
-    aptDong:    String(item.aptDong || '').trim(),
     jibun:      String(item.jibun || '').trim(),
     roadNm:     String(item.roadNm || '').trim(),
     roadNmBonbun: String(item.roadNmBonbun || '').trim(),
@@ -3731,7 +3730,6 @@ function renderTodayTrades(trades, gu) {
         <span>${t.area.toFixed(1)}㎡ (${Math.round(t.area/3.3)}평)</span>
         <span>${t.floor}층</span>
         <span>🏗 ${t.built}년</span>
-        ${t.aptDong ? `<span>🏢 ${t.aptDong}동</span>` : ''}
       </div>
       ${formatAddress(t) ? `<div class="re-trade-addr">${formatAddress(t)}</div>` : ''}
       <div class="re-trade-price">${fmtPrice(t.amount)}</div>
@@ -6350,7 +6348,7 @@ function renderAptCards() {
         <span style="font-size:11px;color:var(--dim);">
           ${t.dealDate.slice(0,4)}.${t.dealDate.slice(4,6)}.${t.dealDate.slice(6,8)}
           &nbsp;·&nbsp;${t.area?.toFixed(0)||'?'}㎡(${Math.round((t.area||0)/3.3)}평)
-          &nbsp;·&nbsp;${t.floor||'?'}층${t.aptDong ? `&nbsp;·&nbsp;${t.aptDong}동` : ''}
+          &nbsp;·&nbsp;${t.floor||'?'}층
         </span>
         <span style="font-size:13px;font-weight:700;color:var(--accent2);">${fmtPrice(t.amount)}</span>
       </div>`).join('');
@@ -6458,7 +6456,7 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
       const trendCached   = JSON.parse(localStorage.getItem(trendCacheKey) || 'null');
       const pick = t => ({
         amount: t.amount, area: t.area, floor: t.floor, dealDate: t.dealDate,
-        aptDong: t.aptDong, jibun: t.jibun, roadNm: t.roadNm,
+        jibun: t.jibun, roadNm: t.roadNm,
         roadNmBonbun: t.roadNmBonbun, roadNmBubun: t.roadNmBubun, dong: t.dong,
       });
       if (trendCached && (Date.now() - trendCached.ts) < 24*60*60*1000) {
@@ -6490,10 +6488,10 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
       tableWrap.innerHTML = '<div style="text-align:center;padding:16px;color:var(--dim);font-size:12px;">해당 기간 거래 데이터가 없습니다.</div>';
     } else {
       const rows = [...periodTrades].sort((a,b)=>b.dealDate.localeCompare(a.dealDate));
-      tableWrap.innerHTML = `<table class="re-table"><thead><tr><th>거래일</th><th>면적(㎡)</th><th>층</th><th>동</th><th>거래가</th></tr></thead><tbody>
+      tableWrap.innerHTML = `<table class="re-table"><thead><tr><th>거래일</th><th>면적(㎡)</th><th>층</th><th>거래가</th></tr></thead><tbody>
         ${rows.map(t=>`
         <tr><td>${t.dealDate.slice(0,4)}.${t.dealDate.slice(4,6)}.${t.dealDate.slice(6,8)}</td>
-        <td>${t.area?.toFixed(1)||'–'}</td><td>${t.floor||'–'}층</td><td>${t.aptDong||'–'}</td><td class="price-cell">${fmtPrice(t.amount)}</td></tr>`).join('')}
+        <td>${t.area?.toFixed(1)||'–'}</td><td>${t.floor||'–'}층</td><td class="price-cell">${fmtPrice(t.amount)}</td></tr>`).join('')}
       </tbody></table>`;
     }
   }
