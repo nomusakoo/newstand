@@ -6420,7 +6420,7 @@ function renderAptDetail() {
       <div class="re-info-item"><div class="re-info-label">건축연도</div><div class="re-info-val">${built||'–'}년</div></div>
       <div class="re-info-item"><div class="re-info-label">재건축 예상</div><div class="re-info-val gr">${rebuildYear?rebuildYear+'년':'–'}</div></div>
     </div>
-    <div class="re-pyeong-bar">
+    <div class="re-pyeong-bar" id="re-pyeong-bar">
       <button class="re-tab ${rePyeong==='all'?'active':''}" onclick="setRePyeong('all')">전체</button>
       ${pyeongs.map(p=>`<button class="re-tab ${rePyeong===p?'active':''}" onclick="setRePyeong('${p}')">${p}</button>`).join('')}
     </div>
@@ -6434,6 +6434,15 @@ function renderAptDetail() {
     <div style="font-size:11px;color:var(--dim);font-family:var(--font-mono);margin-bottom:8px;" id="re-trade-table-desc">선택 기간 거래 내역 조회 중…</div>
     <div id="re-trade-table-wrap"><div class="re-loading"><div class="spinner"></div></div></div>`;
   loadPriceTrend(apt.name, reSelectedGu?.code, rePeriod, rePyeong, pyeongMap);
+}
+
+function renderPyeongBar(pyeongs, currentPyeong) {
+  const bar = document.getElementById('re-pyeong-bar');
+  if (!bar) return;
+  bar.innerHTML = `
+    <button class="re-tab ${currentPyeong==='all'?'active':''}" onclick="setRePyeong('all')">전체</button>
+    ${pyeongs.map(p=>`<button class="re-tab ${currentPyeong===p?'active':''}" onclick="setRePyeong('${p}')">${p}</button>`).join('')}
+  `;
 }
 
 async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
@@ -6475,6 +6484,15 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
     }));
     results.forEach(r=>{ if(r.status==='fulfilled') allTrades.push(...r.value); });
   }
+  // 평형 탭은 초기 진입 시 불러온 좁은 스냅샷이 아니라, 선택된 기간(3개월~5년) 전체에서
+  // 실제로 존재하는 평형을 기준으로 다시 그려서 일부 평형 탭이 누락되지 않도록 함
+  const availablePyeongs = [...new Set(allTrades.map(t => Math.round(t.area/3.3)+'평'))]
+    .sort((a,b)=>parseInt(a)-parseInt(b));
+  if (pyeong !== 'all' && !availablePyeongs.includes(pyeong)) {
+    pyeong = 'all';
+    rePyeong = 'all';
+  }
+  renderPyeongBar(availablePyeongs, pyeong);
   const periodTrades = pyeong==='all' ? allTrades : allTrades.filter(t=>Math.round(t.area/3.3)+'평'===pyeong);
   const trendData = [...periodTrades].sort((a,b)=>a.dealDate.localeCompare(b.dealDate));
   const chartArea = document.getElementById('re-chart-area');
