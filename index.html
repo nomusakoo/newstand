@@ -1043,6 +1043,9 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 <section class="tab-panel active" id="tab-news">
 
   <div class="toolbar">
+    <div class="insight-search-bar">
+      <input class="insight-search-input" id="news-search" placeholder="🔍 제목·내용 검색…" oninput="setNewsSearch(this.value)" autocomplete="off">
+    </div>
     <!-- 발행사 필터 (접기 없음) -->
     <div class="filter-row" id="source-filters">
       <button class="filter-btn active" data-source="all">전체</button>
@@ -1394,6 +1397,16 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       </div>
     </div>
     <div style="font-size:10px;color:var(--muted);margin-top:8px;">* 기술 지표 종합 점수 기준 · 투자 판단의 참고 자료로만 활용하세요.</div>
+  </div>
+
+  <!-- 배당 캘린더 -->
+  <div class="re-today-wrap" id="div-calendar-wrap" style="display:none;margin-bottom:20px;">
+    <div class="re-today-header">
+      <span class="re-title">💰 배당 캘린더</span>
+      <span class="re-today-desc" id="div-calendar-desc"></span>
+      <button class="stock-edit-btn" style="margin-left:auto;padding:4px 10px;font-size:11px;" onclick="toggleDivCalendar()" id="div-calendar-toggle-btn">펼치기</button>
+    </div>
+    <div id="div-calendar-list" style="display:none;"></div>
   </div>
 
   <div class="stock-subtab-bar">
@@ -1956,6 +1969,7 @@ const FEED_CACHE_TTL   = 25 * 60 * 1000; // 25분 로컬 캐시
 let allNews          = [];
 let currentSource    = 'all';
 let currentKeyword   = 'all';
+let newsSearchQuery  = '';
 let currentModalType = 'investment';
 let autoTimer        = null;
 let countdownTimer   = null;
@@ -2101,6 +2115,22 @@ function lsGetJSON(key, fallback) {
 }
 function lsSetJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 
+/* ── UTIL: localStorage TTL 캐시 ────────────────────────────
+   "{ts, data} 저장 후 TTL 이내면 재사용" 패턴이 여러 곳(뉴스 피드,
+   부동산 실거래/추이 조회 등)에 각자 손으로 구현돼 있어 캐시 키
+   버전 관리 실수(예: 필드 추가 시 구 캐시 재사용)가 반복됐음.
+   공통 헬퍼로 통합. ── */
+function getTTLCache(key, ttlMs) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(key) || 'null');
+    if (cached && (Date.now() - cached.ts) < ttlMs) return cached.data;
+  } catch(e) {}
+  return null;
+}
+function setTTLCache(key, data) {
+  try { localStorage.setItem(key, JSON.stringify({ts: Date.now(), data})); } catch(e) {}
+}
+
 function parseXmlItems(xml) {
   const doc   = new DOMParser().parseFromString(xml, 'text/xml');
   // RSS 2.0: <item>, Atom: <entry>
@@ -2171,16 +2201,12 @@ async function fetchFeed(feed, forceRefresh = false) {
 
   // localStorage 캐시 (forceRefresh 시 건너뜀)
   if (!forceRefresh) {
-    try {
-      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-      if (cached && (Date.now() - cached.ts) < FEED_CACHE_TTL) {
-        return cached.items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
-      }
-    } catch {}
+    const cachedItems = getTTLCache(cacheKey, FEED_CACHE_TTL);
+    if (cachedItems) return cachedItems.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
   }
 
   const save = (items) => {
-    try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), items })); } catch {}
+    setTTLCache(cacheKey, items);
     return items.map(item => ({ ...item, source: feed.name, topic: feed.topic }));
   };
 
@@ -2363,15 +2389,32 @@ function goToStock(code) {
   }, 300);
 }
 
+function setNewsSearch(v) {
+  newsSearchQuery = (v || '').toLowerCase().trim();
+  renderNews();
+}
+
 function renderNews() {
   let filtered = allNews;
   if (currentSource !== 'all')  filtered = filtered.filter(n => n.source === currentSource);
   if (currentKeyword !== 'all') filtered = filtered.filter(n => matchesKeyword(n, currentKeyword));
+  if (newsSearchQuery) {
+    filtered = filtered.filter(n => ((n.title||'') + ' ' + (n.snippet||'')).toLowerCase().includes(newsSearchQuery));
+  }
 
   // 전체 탭: 최대 28개 / 소스 필터 탭: 12개 고정
   const displayCount = 36;
   const topN = filtered.slice(0, displayCount);
   document.getElementById('news-count').textContent = topN.length;
+
+  if (topN.length === 0 && newsSearchQuery) {
+    document.getElementById('news-grid').innerHTML = `
+      <div class="state-box" style="grid-column:1/-1">
+        <div class="emoji">🔍</div>
+        <p>'${escapeHtml(newsSearchQuery)}' 에 해당하는 뉴스가 없습니다.</p>
+      </div>`;
+    return;
+  }
 
   if (topN.length === 0) {
     const hasWorker = !!getWorkerUrl();
@@ -3550,6 +3593,7 @@ async function selectTodayGu(code) {
 // 공공데이터포털 서비스키: 설정(⚙️) 모달에서 등록/관리합니다. 소스에 평문으로 두지 않습니다.
 function reApiKey() { return localStorage.getItem('ns_re_key') || ''; }
 const RE_API_BASE = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade';
+const RE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 실거래 월별 조회 캐시 24시간
 
 async function loadTodayGuTrades(code) {
   const list = document.getElementById('re-today-list');
@@ -3796,8 +3840,8 @@ async function fetchGuMonthsTrades(code, yyyymmList, workerUrl) {
   const all = [];
   for (const ym of yyyymmList) {
     const cacheKey = `re_${code}_${ym}`;
-    const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-    if (cached && (Date.now() - cached.ts) < 24*60*60*1000) { all.push(...cached.data); continue; }
+    const cached = getTTLCache(cacheKey, RE_CACHE_TTL_MS);
+    if (cached) { all.push(...cached); continue; }
     const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${reApiKey()}&pageNo=1&numOfRows=1000&LAWD_CD=${code}&DEAL_YMD=${ym}&_type=json`;
     const url = `${workerUrl}?url=${encodeURIComponent(rawUrl)}`;
     try {
@@ -3810,7 +3854,7 @@ async function fetchGuMonthsTrades(code, yyyymmList, workerUrl) {
       if (!rawItems) continue;
       const items  = Array.isArray(rawItems) ? rawItems : [rawItems];
       const parsed = parseTradeItems(items);
-      try { localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), data:parsed})); } catch(e) {}
+      setTTLCache(cacheKey, parsed);
       all.push(...parsed);
     } catch(e) {
       console.warn('[아파트 검색]', code, ym, e.message);
@@ -4271,6 +4315,39 @@ async function resolveKrSymbol(code) {
   return {symbol: chosen.symbol, result: chosen.result};
 }
 
+/* ── 배당 정보 (Yahoo chart API의 events=div 파라미터로 배당 이력 확보,
+   quoteSummary처럼 별도 인증이 필요한 엔드포인트를 안 써도 됨) ── */
+async function fetchDividendInfo(symbol) {
+  const cacheKey = `ns_div_${symbol}`;
+  const cached = getTTLCache(cacheKey, 24 * 60 * 60 * 1000);
+  if (cached) return cached;
+  try {
+    const workerUrl = localStorage.getItem('ns_worker_url') || '';
+    const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y&events=div`;
+    const url  = workerUrl ? `${workerUrl}?url=${encodeURIComponent(base)}` : base;
+    const res  = await fetchFinanceWithTimeout(url, {}, 8000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
+    const divEvents = Object.values(result?.events?.dividends || {});
+    const nowSec = Date.now() / 1000;
+    const trailing12m = divEvents.filter(d => d.date >= nowSec - 366 * 24 * 60 * 60);
+    const annualDividend = trailing12m.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const last = [...divEvents].sort((a, b) => b.date - a.date)[0] || null;
+    const info = {
+      annualDividend: annualDividend || null,
+      lastExDate: last ? last.date * 1000 : null,
+      lastAmount: last ? last.amount : null,
+      payoutCount12m: trailing12m.length,
+    };
+    setTTLCache(cacheKey, info);
+    return info;
+  } catch(e) {
+    console.warn(`[배당 정보] ${symbol}:`, e.message);
+    return null;
+  }
+}
+
 async function fetchStockQuote(stock) {
   const cached = stockDataCache[stock.code];
   if (cached && Date.now()-cached.ts < 5*60*1000) return cached.data;
@@ -4345,6 +4422,15 @@ async function fetchStockQuote(stock) {
         : null,
     };
     data.score = calcStockScore(data);
+    if (stock.isDividend) {
+      const div = await fetchDividendInfo(symbol);
+      if (div) {
+        data.dividendAnnual = div.annualDividend;
+        data.dividendYield  = (div.annualDividend && price) ? (div.annualDividend / price * 100) : null;
+        data.lastExDate     = div.lastExDate;
+        data.lastDividendAmount = div.lastAmount;
+      }
+    }
     stockDataCache[stock.code] = {ts:Date.now(), data};
     return data;
   } catch(e) {
@@ -4563,6 +4649,52 @@ async function loadAllStockData() {
   renderStockGroups('us', STOCK_LIST.us, usData);
   renderHeatmap(); // 히트맵 갱신
   renderTop3(top3CurrentTab); // Top3 갱신
+  renderDividendCalendar(STOCK_LIST.kr, krData, STOCK_LIST.us, usData);
+}
+
+/* ── 배당 캘린더 ─────────────────────────────────────────── */
+let divCalendarOpen = false;
+
+function toggleDivCalendar() {
+  divCalendarOpen = !divCalendarOpen;
+  const list = document.getElementById('div-calendar-list');
+  const btn  = document.getElementById('div-calendar-toggle-btn');
+  if (list) list.style.display = divCalendarOpen ? 'block' : 'none';
+  if (btn)  btn.textContent = divCalendarOpen ? '접기' : '펼치기';
+}
+
+function renderDividendCalendar(krList, krData, usList, usData) {
+  const wrap   = document.getElementById('div-calendar-wrap');
+  const desc   = document.getElementById('div-calendar-desc');
+  const listEl = document.getElementById('div-calendar-list');
+  if (!wrap || !listEl) return;
+
+  const rows = [];
+  [[krList, krData], [usList, usData]].forEach(([list, dataArr]) => {
+    list.forEach((s, i) => {
+      if (!s.code || !s.isDividend) return;
+      const d = dataArr[i];
+      if (!d) return;
+      rows.push({
+        name: d.name || s.name, currency: d.currency,
+        lastExDate: d.lastExDate, lastAmount: d.lastDividendAmount, yield: d.dividendYield,
+      });
+    });
+  });
+
+  if (!rows.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  rows.sort((a,b) => (b.lastExDate||0) - (a.lastExDate||0));
+  desc.textContent = `배당주 ${rows.length}종목`;
+
+  listEl.innerHTML = `<table class="re-table"><thead><tr><th>종목명</th><th>최근 배당락일</th><th>주당 배당금</th><th>배당수익률</th></tr></thead><tbody>
+    ${rows.map(r => {
+      const dateStr  = r.lastExDate ? new Date(r.lastExDate).toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'}) : '–';
+      const amtStr   = r.lastAmount!=null ? (r.currency==='KRW' ? `${r.lastAmount.toLocaleString('ko-KR')}원` : `$${r.lastAmount.toFixed(2)}`) : '–';
+      const yieldStr = r.yield!=null ? `${r.yield.toFixed(2)}%` : '–';
+      return `<tr><td>${r.name}</td><td>${dateStr}</td><td>${amtStr}</td><td class="price-cell">${yieldStr}</td></tr>`;
+    }).join('')}
+  </tbody></table>`;
 }
 
 /* ── 그룹별 렌더 ─────────────────────────────────────────── */
@@ -4659,7 +4791,7 @@ function renderStockGroups(tab, list, dataArr) {
         <td>${sig(getMacdSignal(d.macd))}</td>
         <td>${renderVolCell(d.vol, d.vol20)}</td>
         <td>${renderW52Bar(d)}</td>
-        <td>${stock.isDividend?'<span class="div-badge">배당</span>':'<span style="color:var(--muted)">–</span>'}</td>
+        <td>${stock.isDividend?`<span class="div-badge">배당${d.dividendYield!=null?` ${d.dividendYield.toFixed(1)}%`:''}</span>`:'<span style="color:var(--muted)">–</span>'}</td>
         <td>${scoreLabel(d.score)}</td>
         <td></td>
       </tr>`;
@@ -4736,7 +4868,7 @@ function renderStockGroups(tab, list, dataArr) {
         </div>
         <div class="stock-mobile-bottom">
           <span class="stock-mobile-code">${stock.code}</span>
-          ${stock.isDividend?'<span class="div-badge">배당</span>':''}
+          ${stock.isDividend?`<span class="div-badge">배당${d.dividendYield!=null?` ${d.dividendYield.toFixed(1)}%`:''}</span>`:''}
         </div>
       </div>`;
     }).join('');
@@ -6287,9 +6419,9 @@ async function loadAptList(code, guName, year, month) {
   document.getElementById('re-dong-tabs').innerHTML = '';
 
   const cacheKey = `re_${code}_${year}${month}`;
-  const cached   = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-  if (cached && (Date.now() - cached.ts) < 24*60*60*1000) {
-    reAllTrades = cached.data;
+  const cached   = getTTLCache(cacheKey, RE_CACHE_TTL_MS);
+  if (cached) {
+    reAllTrades = cached;
     reCurrentDong = 'all';
     buildDongTabs();
     groupAndRender();
@@ -6314,8 +6446,7 @@ async function loadAptList(code, guName, year, month) {
     if (!rawItems) { panel.innerHTML = '<div class="re-loading">해당 기간 거래 데이터가 없습니다.</div>'; return; }
     const items = Array.isArray(rawItems) ? rawItems : [rawItems];
     reAllTrades = parseTradeItems(items);
-    // 24시간 캐싱
-    try { localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), data:reAllTrades})); } catch(e) {}
+    setTTLCache(cacheKey, reAllTrades);
     reCurrentDong = 'all';
     buildDongTabs();
     groupAndRender();
@@ -6487,14 +6618,14 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
     const results = await Promise.allSettled(batch.map(async ym => {
       // v3: 동/지번/도로명 필드 추가로 캐시 키 버전 분리 (구 캐시에는 해당 정보가 없음)
       const trendCacheKey = `re_trend3_${guCode}_${ym}`;
-      const trendCached   = JSON.parse(localStorage.getItem(trendCacheKey) || 'null');
       const pick = t => ({
         amount: t.amount, area: t.area, floor: t.floor, dealDate: t.dealDate,
         jibun: t.jibun, roadNm: t.roadNm,
         roadNmBonbun: t.roadNmBonbun, roadNmBubun: t.roadNmBubun, dong: t.dong,
       });
-      if (trendCached && (Date.now() - trendCached.ts) < 24*60*60*1000) {
-        return trendCached.data.filter(t => t.aptNm === aptName).map(pick);
+      const trendCached = getTTLCache(trendCacheKey, RE_CACHE_TTL_MS);
+      if (trendCached) {
+        return trendCached.filter(t => t.aptNm === aptName).map(pick);
       }
       const rawUrl = `${RE_API_BASE}/getRTMSDataSvcAptTrade?serviceKey=${reApiKey()}&pageNo=1&numOfRows=1000&LAWD_CD=${guCode}&DEAL_YMD=${ym}&_type=json`;
       const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
@@ -6504,7 +6635,7 @@ async function loadPriceTrend(aptName, guCode, period, pyeong, pyeongMap) {
       if (!rawItems) return [];
       const items = Array.isArray(rawItems) ? rawItems : [rawItems];
       const allItems = parseTradeItems(items);
-      try { localStorage.setItem(trendCacheKey, JSON.stringify({ts:Date.now(), data:allItems})); } catch(e) {}
+      setTTLCache(trendCacheKey, allItems);
       return allItems.filter(t=>t.aptNm===aptName).map(pick);
     }));
     results.forEach(r=>{ if(r.status==='fulfilled') allTrades.push(...r.value); });
