@@ -3700,13 +3700,13 @@ function pyeongWithSupplyText(area) {
   if (!area) return '';
   const exclusive = Math.round(area / 3.3);
   const supply = supplyPyeongEstimate(exclusive);
-  return supply ? `${exclusive}평(공급 약 ${supply}평 추정)` : `${exclusive}평`;
+  return supply ? `공급 약 ${supply}평/전용 ${exclusive}평` : `${exclusive}평`;
 }
 
-// 평형 탭 라벨: "22평" → "22평/29평" (전용/공급 추정)
+// 평형 탭 라벨: "22평" → "공급 약 29평/전용 22평"
 function pyeongTabLabel(p) {
   const supply = supplyPyeongEstimate(p);
-  return supply ? `${p}/${supply}평` : p;
+  return supply ? `공급 약 ${supply}평/전용 ${p}` : p;
 }
 
 function renderTodayTrades(trades, gu) {
@@ -6448,7 +6448,7 @@ function renderAptDetail() {
       <button class="re-tab ${rePyeong==='all'?'active':''}" onclick="setRePyeong('all')">전체</button>
       ${pyeongs.map(p=>`<button class="re-tab ${rePyeong===p?'active':''}" onclick="setRePyeong('${p}')">${pyeongTabLabel(p)}</button>`).join('')}
     </div>
-    <div class="re-pyeong-note">평형은 전용면적 기준(전용/공급 순), 공급면적은 전용률 77% 가정한 추정치입니다.</div>
+    <div class="re-pyeong-note">그룹핑은 전용면적 기준(공급/전용 순 표기), 공급면적은 전용률 77% 가정한 추정치입니다.</div>
     <div class="re-tab-bar" id="re-period-tabs">
       ${['3m','6m','1y','3y','5y'].map(p=>`<button class="re-tab ${rePeriod===p?'active':''}" onclick="setRePeriod('${p}')">${p==='3m'?'3개월':p==='6m'?'6개월':p==='1y'?'1년':p==='3y'?'3년':'5년'}</button>`).join('')}
     </div>
