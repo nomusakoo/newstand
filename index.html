@@ -98,7 +98,8 @@ img{display:block;max-width:100%;}
   white-space:nowrap;animation:ticker 50s linear infinite;
 }
 .ticker-wrap:hover .ticker-inner{animation-play-state:paused;}
-.ticker-inner span{margin:0 28px;}
+.ticker-inner a{margin:0 28px;color:inherit;text-decoration:none;cursor:pointer;}
+.ticker-inner a:hover{text-decoration:underline;}
 @keyframes ticker{from{transform:translateX(100vw);}to{transform:translateX(-100%);}}
 
 /* ─── HEADER ─────────────────────────────────────────────── */
@@ -2515,8 +2516,10 @@ function renderNews() {
 }
 
 function updateTicker() {
-  const items = allNews.slice(0,18).map(n => `📰 ${n.source} · ${n.title}`);
-  document.getElementById('ticker').innerHTML = items.map(t=>`<span>${t}</span>`).join('');
+  const items = allNews.slice(0,18);
+  document.getElementById('ticker').innerHTML = items.map(n =>
+    `<a href="${n.link}" target="_blank" rel="noopener">📰 ${n.source} · ${n.title}</a>`
+  ).join('');
 }
 
 /* ── 뉴스카드 저장버튼 이벤트 위임 ──────────────────────── */
