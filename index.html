@@ -97,6 +97,7 @@ img{display:block;max-width:100%;}
   display:flex;align-items:center;height:100%;
   white-space:nowrap;animation:ticker 50s linear infinite;
 }
+.ticker-wrap:hover .ticker-inner{animation-play-state:paused;}
 .ticker-inner span{margin:0 28px;}
 @keyframes ticker{from{transform:translateX(100vw);}to{transform:translateX(-100%);}}
 
@@ -3646,24 +3647,29 @@ function parseRentItems(items) {
 async function fetchRentTrades(guCode, ym, workerUrl) {
   const cacheKey = `re_rent_${guCode}_${ym}`;
   const cached = getTTLCache(cacheKey, RE_CACHE_TTL_MS);
-  if (cached) return cached;
+  if (cached) return {items: cached, error: null, rawCount: cached.length};
   const rawUrl = `${RE_RENT_API_BASE}/getRTMSDataSvcAptRent?serviceKey=${reApiKey()}&pageNo=1&numOfRows=1000&LAWD_CD=${guCode}&DEAL_YMD=${ym}&_type=json`;
   const url = workerUrl ? `${workerUrl}?url=${encodeURIComponent(rawUrl)}` : rawUrl;
   try {
     const res  = await fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) return {items: [], error: `HTTP ${res.status}`, rawCount: 0};
     const json = await res.json();
     const rc   = json?.response?.header?.resultCode;
-    if (rc !== '000' && rc !== '00') return [];
+    if (rc !== '000' && rc !== '00') {
+      const msg = json?.response?.header?.resultMsg || `오류코드 ${rc}`;
+      console.warn(`[전월세 API] ${guCode} ${ym} 오류:`, msg);
+      return {items: [], error: msg, rawCount: 0};
+    }
     const rawItems = json?.response?.body?.items?.item;
-    if (!rawItems) return [];
+    if (!rawItems) return {items: [], error: null, rawCount: 0};
     const items  = Array.isArray(rawItems) ? rawItems : [rawItems];
+    if (items[0]) console.debug('[전월세 API] 원본 응답 필드 예시:', items[0]);
     const parsed = parseRentItems(items);
     setTTLCache(cacheKey, parsed);
-    return parsed;
+    return {items: parsed, error: null, rawCount: items.length};
   } catch(e) {
     console.warn('[전월세 조회]', guCode, ym, e.message);
-    return [];
+    return {items: [], error: e.message, rawCount: 0};
   }
 }
 
@@ -3683,11 +3689,32 @@ async function loadRentInfo(aptName, dong, guCode, period) {
   }
 
   const allRents = [];
+  let firstError = null, totalRaw = 0;
   const batchSize = 4;
   for (let i=0; i<yyyymmList.length; i+=batchSize) {
     const batch   = yyyymmList.slice(i, i+batchSize);
     const results = await Promise.all(batch.map(ym => fetchRentTrades(guCode, ym, workerUrl)));
-    results.forEach(list => allRents.push(...list));
+    results.forEach(r => {
+      allRents.push(...r.items);
+      totalRaw += r.rawCount || 0;
+      if (r.error && !firstError) firstError = r.error;
+    });
+  }
+
+  if (firstError && !allRents.length) {
+    wrap.innerHTML = `<div style="text-align:center;padding:16px;color:var(--red);font-size:12px;">
+      ⚠️ 전월세 데이터 조회 실패: ${escapeHtml(firstError)}<br>
+      <small style="opacity:.7;color:var(--dim);">국토교통부_아파트 전월세 자료 API는 매매 API와 별도로 data.go.kr에서 활용신청 승인이 필요할 수 있습니다. 마이페이지에서 승인 여부를 확인해주세요.</small>
+    </div>`;
+    return;
+  }
+  if (totalRaw > 0 && allRents.length === 0) {
+    // API 응답은 정상 수신했는데 파싱된 결과가 하나도 없음 — 필드명 매칭 실패로 보임
+    wrap.innerHTML = `<div style="text-align:center;padding:16px;color:var(--red);font-size:12px;">
+      ⚠️ 전월세 데이터를 받았지만 해석하지 못했습니다 (API 필드명이 예상과 다른 것으로 보입니다).<br>
+      <small style="opacity:.7;color:var(--dim);">개발자 도구 콘솔(F12)의 "[전월세 API] 원본 응답 필드 예시" 로그를 확인해 알려주시면 수정하겠습니다.</small>
+    </div>`;
+    return;
   }
 
   const filtered = allRents.filter(t => t.aptNm === aptName && t.dong === dong);
