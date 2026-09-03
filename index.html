@@ -4430,6 +4430,7 @@ async function loadLawDetail(l) {
     : `https://www.law.go.kr/lsSc.do?query=${encodeURIComponent(l.name)}`;
 
   let articlesHtml = '';
+  let revisionReason = '';
   if (oc && workerUrl && (l.mst || l.lawId)) {
     const idParam = l.mst ? `MST=${encodeURIComponent(l.mst)}` : `ID=${encodeURIComponent(l.lawId)}`;
     const rawUrl = `${LAW_API_BASE}/lawService.do?OC=${encodeURIComponent(oc)}&target=law&type=JSON&${idParam}`;
@@ -4438,11 +4439,14 @@ async function loadLawDetail(l) {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      console.log('[법령 API] 본문 조회 원본 응답:', json);
-      const root = json?.Law || json?.law || json;
-      const joRaw = root?.조문 || root?.['조문단위'] || [];
+      // 실제 응답 확인 결과: 루트 키는 "법령", 조문은 법령.조문.조문단위 배열,
+      // 개정이유는 법령.제개정이유.제개정이유내용 (2026-09-03 사용자 콘솔 로그로 확인)
+      const root = json?.법령 || json?.Law || json?.law || json;
+      const joRoot = root?.조문;
+      const joRaw  = joRoot?.조문단위 ?? joRoot ?? [];
       const articles = Array.isArray(joRaw) ? joRaw : (joRaw ? [joRaw] : []);
       articlesHtml = renderLawArticles(articles);
+      revisionReason = extractRevisionReason(root);
     } catch(e) {
       console.warn('[법령 본문 조회]', e.message);
       articlesHtml = `<div style="color:var(--red);font-size:12px;padding:12px 0;">⚠️ 본문 조회 실패: ${escapeHtml(e.message)}<br>
@@ -4463,6 +4467,7 @@ async function loadLawDetail(l) {
     <div class="re-detail-meta">🏛 ${l.dept||'–'} &nbsp;|&nbsp; 📅 공포 ${fmtLawDate(l.promDate)} &nbsp;|&nbsp; 시행 ${fmtLawDate(l.effDate)} ${l.kind?`&nbsp;|&nbsp; ${l.kind}`:''}</div>
     <a href="${officialUrl}" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);text-decoration:none;display:inline-block;margin-bottom:14px;">📖 법제처 원문 보기 ↗</a>
     <div class="re-rent-title">📜 시행일자별 개정 이력</div>
+    ${revisionReason ? `<div style="font-size:12px;color:var(--text);background:var(--ink);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;white-space:pre-line;line-height:1.6;"><strong style="color:var(--bright);">📝 개정 이유</strong><br>${escapeHtml(revisionReason)}</div>` : ''}
     <div id="law-history-list"><div class="re-loading"><div class="spinner"></div></div></div>
     <div class="re-rent-title" style="margin-top:16px;">📄 조문</div>
     <div id="law-articles">${articlesHtml}</div>`;
@@ -4470,19 +4475,38 @@ async function loadLawDetail(l) {
   loadLawHistory(l);
 }
 
+// 조문단위 항목의 "조문내용"은 이미 "제1조(목적) 이 법은…" 형태로 완성된 문장이고,
+// 장/절 제목("제1장 총칙")도 같은 배열에 별도 항목으로 섞여 들어있음 (2026-09-03 확인).
 function renderLawArticles(articles) {
   const rows = articles.map(a => {
-    const num   = pickField(a, ['조문번호','조번호']);
-    const title = pickField(a, ['조문제목','조제목']);
-    const body  = pickField(a, ['조문내용','조내용']);
-    if (!body) return '';
-    return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
-      <div style="font-size:12px;font-weight:700;color:var(--bright);margin-bottom:4px;">제${num}조${title?` (${title})`:''}</div>
-      <div style="font-size:12px;color:var(--text);white-space:pre-line;line-height:1.6;">${escapeHtml(String(body))}</div>
-    </div>`;
+    const body = pickField(a, ['조문내용','조내용']);
+    if (!body || !String(body).trim()) return '';
+    const text = String(body).trim();
+    const isHeading = /^제\s*\d+\s*(편|장|절|관)/.test(text);
+    if (isHeading) {
+      return `<div style="font-size:13px;font-weight:700;color:var(--bright);margin:16px 0 6px;">${escapeHtml(text)}</div>`;
+    }
+    return `<div style="font-size:12px;color:var(--text);white-space:pre-line;line-height:1.7;padding:6px 0;border-bottom:1px solid var(--border);">${escapeHtml(text)}</div>`;
   }).filter(Boolean).join('');
   return rows || '<div style="color:var(--dim);font-size:12px;padding:12px 0;">조문 내용을 불러오지 못했습니다 (API 응답 형식이 예상과 다를 수 있음). 위 "법제처 원문 보기" 링크를 이용해주세요.<br>' +
     '<small style="opacity:.7;">개발자 도구(F12) 콘솔의 "[법령 API] 본문 조회 원본 응답" 로그를 확인해 알려주시면 수정하겠습니다.</small></div>';
+}
+
+// 제개정이유.제개정이유내용은 배열 형태 — 문자열/객체 어느 쪽이든 안전하게 텍스트만 추출
+function extractRevisionReason(root) {
+  const raw = root?.제개정이유?.제개정이유내용;
+  if (!raw) return '';
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map(x => {
+    if (typeof x === 'string') return x;
+    if (x && typeof x === 'object') {
+      const known = pickField(x, ['제개정이유내용','내용','content']);
+      if (known) return known;
+      const firstStr = Object.values(x).find(v => typeof v === 'string' && v.trim());
+      return firstStr || '';
+    }
+    return '';
+  }).filter(Boolean).join('\n').trim();
 }
 
 async function loadLawHistory(l) {
