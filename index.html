@@ -1016,7 +1016,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   <button class="tab-btn" data-tab="realestate"><span>🏠</span> 부동산 실거래가</button>
   <button class="tab-btn" data-tab="stock"><span>📊</span> 주식</button>
   <button class="tab-btn" data-tab="insight"><span>💡</span> 인사이트</button>
-  <button class="tab-btn" data-tab="daily-question"><span>❓</span> 하루 한 물음</button>
+  <button class="tab-btn" data-tab="law"><span>📜</span> 법령정보</button>
 </nav>
 
 <!-- ─── MOBILE BOTTOM NAV ──────────────────────────────────── -->
@@ -1034,8 +1034,8 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
     <button class="bnav-btn" data-tab="insight">
       <span class="bnav-icon">💡</span>인사이트
     </button>
-    <button class="bnav-btn" data-tab="daily-question">
-      <span class="bnav-icon">❓</span>하루질문
+    <button class="bnav-btn" data-tab="law">
+      <span class="bnav-icon">📜</span>법령
     </button>
   </div>
 </nav>
@@ -1604,20 +1604,38 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 
 </section>
 
-<!-- ══ TAB 5 · 하루 한 물음 ══════════════════════════════════ -->
-<section class="tab-panel" id="tab-daily-question">
-  <div class="section-hd">
-    <h2>❓ 하루 한 물음</h2>
-    <a href="https://nomusakoo.github.io/perfectqna/" target="_blank" rel="noopener" style="margin-left:auto;font-size:12px;color:var(--accent);text-decoration:none;">
-      새 창에서 열기 ↗
-    </a>
+<!-- ══ TAB 5 · 법령정보 ══════════════════════════════════════ -->
+<section class="tab-panel" id="tab-law">
+  <div id="law-list-panel">
+    <!-- 법령 검색 -->
+    <div class="re-today-wrap">
+      <div class="re-today-header">
+        <span class="re-title">📜 법령 검색</span>
+      </div>
+      <div class="re-search-row">
+        <input type="text" id="law-search-input" class="sem-input" placeholder="법령명 입력 (예: 근로기준법, 도로교통법…)"
+          onkeydown="if(event.key==='Enter') searchLaws()">
+        <button class="sem-btn sem-btn-primary" onclick="searchLaws()">검색</button>
+      </div>
+      <div class="re-search-status" id="law-search-status"></div>
+      <div id="law-search-results"></div>
+    </div>
+
+    <!-- 즐겨찾기 법령 -->
+    <div class="re-today-wrap" id="law-fav-wrap" style="display:none;">
+      <div class="re-today-header">
+        <span class="re-title">⭐ 즐겨찾기 법령</span>
+        <span class="re-today-desc" id="law-fav-count"></span>
+      </div>
+      <div id="law-fav-list"></div>
+    </div>
   </div>
-  <div style="font-size:11px;color:var(--dim);margin-bottom:10px;">
-    화면이 비어 보이면 사이트가 iframe 임베드를 차단한 경우입니다 — 위 "새 창에서 열기"를 이용해주세요.
+
+  <!-- 법령 상세 -->
+  <div id="law-detail-panel" style="display:none;">
+    <button class="re-back-btn" onclick="closeLawDetail()">← 목록으로</button>
+    <div id="law-detail-content"></div>
   </div>
-  <iframe id="daily-question-frame" title="하루 한 물음"
-    style="width:100%;height:80vh;border:1px solid var(--border);border-radius:10px;background:var(--panel);"
-    loading="lazy"></iframe>
 </section>
 </main>
 
@@ -1694,6 +1712,16 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
         <input type="text" id="cfg-re-key" placeholder="공공데이터포털 발급 서비스키">
       </div>
       <span id="re-key-status" style="font-size:11px;color:var(--dim);display:block;margin-top:6px;"></span>
+    </div>
+
+    <!-- 법제처 API 인증키 섹션 -->
+    <div style="border-top:1px solid var(--border);padding-top:12px;">
+      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">📜 법제처 API 인증키 <span style="font-size:10px;color:var(--dim);font-weight:400;">(법령정보 조회용, OC값)</span></p>
+      <div class="form-group">
+        <label>OC (이메일 ID)</label>
+        <input type="text" id="cfg-law-oc" placeholder="open.law.go.kr에서 발급받은 OC값">
+      </div>
+      <span id="law-oc-status" style="font-size:11px;color:var(--dim);display:block;margin-top:6px;"></span>
     </div>
 
     <!-- 주식 목록 초기화 섹션 -->
@@ -2058,10 +2086,6 @@ function switchTab(tabName) {
       initSeoulMap();
       loadTodayTrades(); // 광진구 자동 로드
     }, 50);
-  }
-  if (tabName === 'daily-question') {
-    const frame = document.getElementById('daily-question-frame');
-    if (frame && !frame.src) frame.src = 'https://nomusakoo.github.io/perfectqna/';
   }
 }
 
@@ -3009,6 +3033,12 @@ function openWorkerModal() {
   const reKS = document.getElementById('re-key-status');
   reKS.textContent = savedReKey ? '✅ 등록됨' : '⚪ 미등록 — 부동산 실거래가 조회 불가';
   reKS.style.color = savedReKey ? 'var(--green)' : 'var(--dim)';
+  // 법제처 OC 필드 복원
+  const savedLawOc = localStorage.getItem('ns_law_oc') || '';
+  document.getElementById('cfg-law-oc').value = savedLawOc;
+  const lawOcS = document.getElementById('law-oc-status');
+  lawOcS.textContent = savedLawOc ? '✅ 등록됨' : '⚪ 미등록 — 법령정보 조회 불가';
+  lawOcS.style.color = savedLawOc ? 'var(--green)' : 'var(--dim)';
   showModal('worker-modal-overlay');
 }
 function closeWorkerModal() {
@@ -3046,10 +3076,12 @@ function saveAllSettings() {
   const repo      = document.getElementById('cfg-gh-repo').value.trim();
   const workerVal = document.getElementById('worker-url-input').value.trim().replace(/\/$/, '');
   const reKeyVal  = document.getElementById('cfg-re-key').value.trim();
+  const lawOcVal  = document.getElementById('cfg-law-oc').value.trim();
   const sbS = document.getElementById('sb-status');
   const wS  = document.getElementById('worker-status');
   const ghS = document.getElementById('gh-status');
   const reKS = document.getElementById('re-key-status');
+  const lawOcS = document.getElementById('law-oc-status');
 
   // 유효성
   if (sbUrl && !sbUrl.startsWith('https://')) {
@@ -3098,6 +3130,15 @@ function saveAllSettings() {
     reKS.textContent = '⚪ 미등록 — 부동산 실거래가 조회 불가'; reKS.style.color = 'var(--dim)';
   }
 
+  // 법제처 API 인증키 저장
+  if (lawOcVal) {
+    localStorage.setItem('ns_law_oc', lawOcVal);
+    lawOcS.textContent = '✅ 등록됨'; lawOcS.style.color = 'var(--green)';
+  } else {
+    localStorage.removeItem('ns_law_oc');
+    lawOcS.textContent = '⚪ 미등록 — 법령정보 조회 불가'; lawOcS.style.color = 'var(--dim)';
+  }
+
   updateWorkerBtn(!!(sbUrl || workerVal));
 
   // 인사이트 탭 열려있으면 갱신
@@ -3126,16 +3167,17 @@ async function resetStockList() {
 }
 
 function clearSettings() {
-  ['cfg-sb-url','cfg-sb-key','cfg-gh-owner','cfg-gh-repo','worker-url-input','cfg-re-key']
+  ['cfg-sb-url','cfg-sb-key','cfg-gh-owner','cfg-gh-repo','worker-url-input','cfg-re-key','cfg-law-oc']
     .forEach(id => document.getElementById(id).value = '');
   localStorage.removeItem('ns_sb_url');
   localStorage.removeItem('ns_sb_key');
   localStorage.removeItem('ns_worker_url');
   localStorage.removeItem('ns_re_key');
+  localStorage.removeItem('ns_law_oc');
   const cfg = lsGetJSON(LS_KEY, {});
   delete cfg.invest; delete cfg.blog;
   lsSetJSON(LS_KEY, cfg);
-  ['sb-status','gh-status','worker-status','re-key-status'].forEach(id => {
+  ['sb-status','gh-status','worker-status','re-key-status','law-oc-status'].forEach(id => {
     document.getElementById(id).textContent = '🗑️ 초기화됨';
     document.getElementById(id).style.color = 'var(--dim)';
   });
@@ -3427,6 +3469,7 @@ function initApp() {
   renderPortfolio();     // 포트폴리오 초기 렌더
   renderWatchList();      // 관심 아파트 초기 렌더
   scheduleWatchCheck();   // 관심 아파트 신규 거래 체크
+  renderLawFavList();     // 즐겨찾기 법령 초기 렌더
   // Supabase 설정 동기화 (비동기 — UI 블로킹 없이 백그라운드 실행)
   syncSettingsFromSb();
 }
@@ -4256,6 +4299,270 @@ function scheduleWatchCheck() {
     return;
   }
   watchCheckTimer = setTimeout(runScheduledWatchCheck, msUntilNext9AM());
+}
+
+/* ══════════════════════════════════════════════════════════
+   법령정보 탭 (법제처 국가법령정보 Open API, law.go.kr)
+   - 응답 필드가 영문 camelCase가 아니라 한글 키값이라 정확한 스펙을
+     이 환경에서 직접 검증하지 못함. 후보 키 여러 개를 시도하는
+     방어적 파싱(pickField) + 원본 응답 콘솔 로그로 대응.
+══════════════════════════════════════════════════════════ */
+const LAW_API_BASE = 'http://www.law.go.kr/DRF';
+const LAW_FAV_KEY   = 'ns_law_favorites';
+let lawFavorites     = lsGetJSON(LAW_FAV_KEY, []); // [{mst,lawId,name,dept,effDate}]
+let lawSearchResults = [];
+let lawCurrentDetail = null;
+
+function lawOC() { return localStorage.getItem('ns_law_oc') || ''; }
+
+// 후보 키 중 값이 있는 첫 번째를 반환 (한글 응답 키 불확실성 대응)
+function pickField(obj, keys) {
+  if (!obj) return '';
+  for (const k of keys) {
+    if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
+  }
+  return '';
+}
+
+function fmtLawDate(d) {
+  const s = String(d || '');
+  return s.length === 8 ? `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}` : (s || '–');
+}
+
+async function searchLaws() {
+  const input     = document.getElementById('law-search-input');
+  const query     = input.value.trim();
+  const statusEl  = document.getElementById('law-search-status');
+  const resultsEl = document.getElementById('law-search-results');
+  if (!query) { showToast('법령명을 입력해주세요.'); return; }
+  const oc = lawOC();
+  if (!oc) { statusEl.textContent = '⚠️ ⚙️ 설정에서 법제처 API 인증키(OC)를 등록해주세요.'; return; }
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  if (!workerUrl) { statusEl.textContent = '⚠️ Worker URL이 설정되지 않았습니다.'; return; }
+
+  closeLawDetail();
+  statusEl.textContent = '🔍 검색 중…';
+  resultsEl.innerHTML = '';
+
+  const rawUrl = `${LAW_API_BASE}/lawSearch.do?OC=${encodeURIComponent(oc)}&target=law&type=JSON&query=${encodeURIComponent(query)}&display=30`;
+  const url = `${workerUrl}?url=${encodeURIComponent(rawUrl)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    console.debug('[법령 API] 검색 원본 응답:', json);
+    const root = json?.LawSearch || json?.lawSearch || json;
+    const list = root?.law || root?.laws || [];
+    const items = Array.isArray(list) ? list : (list ? [list] : []);
+    renderLawSearchResults(items, query);
+  } catch(e) {
+    console.warn('[법령 검색]', e.message);
+    statusEl.textContent = `⚠️ 검색 실패: ${e.message}`;
+  }
+}
+
+function renderLawSearchResults(items, query) {
+  lawSearchResults = items.map(it => ({
+    name:    pickField(it, ['법령명한글','법령명','법령약칭명']),
+    lawId:   pickField(it, ['법령ID','법령id']),
+    mst:     pickField(it, ['법령일련번호','MST','법령ID']),
+    dept:    pickField(it, ['소관부처명','소관부처']),
+    promDate:pickField(it, ['공포일자']),
+    effDate: pickField(it, ['시행일자']),
+    kind:    pickField(it, ['제개정구분명','제개정구분']),
+  })).filter(l => l.name);
+
+  const statusEl  = document.getElementById('law-search-status');
+  const resultsEl = document.getElementById('law-search-results');
+  if (!lawSearchResults.length) {
+    statusEl.textContent = `'${query}' 검색 결과가 없습니다.`;
+    resultsEl.innerHTML = '';
+    return;
+  }
+  statusEl.textContent = `'${query}' 검색 결과 ${lawSearchResults.length}건`;
+  resultsEl.innerHTML = lawSearchResults.map((l,i) => `
+    <div class="apt-card" onclick="openLawDetail(${i})">
+      <div class="apt-name">${l.name}</div>
+      <div class="apt-meta">
+        <span>🏛 ${l.dept || '–'}</span>
+        <span>📅 시행 ${fmtLawDate(l.effDate)}</span>
+        ${l.kind ? `<span>${l.kind}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function findLawFavIdx(key) {
+  return lawFavorites.findIndex(f => (f.mst && f.mst === key) || (f.lawId && f.lawId === key));
+}
+
+async function openLawDetail(idx) {
+  const l = lawSearchResults[idx];
+  if (!l) return;
+  document.getElementById('law-list-panel').style.display   = 'none';
+  document.getElementById('law-detail-panel').style.display = 'block';
+  document.getElementById('law-detail-content').innerHTML = '<div class="re-loading"><div class="spinner"></div>조회 중…</div>';
+  lawCurrentDetail = l;
+  await loadLawDetail(l);
+}
+
+function openLawFavorite(idx) {
+  const f = lawFavorites[idx];
+  if (!f) return;
+  document.getElementById('law-list-panel').style.display   = 'none';
+  document.getElementById('law-detail-panel').style.display = 'block';
+  document.getElementById('law-detail-content').innerHTML = '<div class="re-loading"><div class="spinner"></div>조회 중…</div>';
+  lawCurrentDetail = {mst:f.mst, lawId:f.lawId, name:f.name, dept:f.dept, effDate:f.effDate, promDate:'', kind:''};
+  loadLawDetail(lawCurrentDetail);
+}
+
+function closeLawDetail() {
+  document.getElementById('law-detail-panel').style.display = 'none';
+  document.getElementById('law-list-panel').style.display   = 'block';
+}
+
+async function loadLawDetail(l) {
+  const oc = lawOC();
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  const contentEl = document.getElementById('law-detail-content');
+  const officialUrl = l.mst
+    ? `https://www.law.go.kr/lsInfoP.do?lsiSeq=${encodeURIComponent(l.mst)}`
+    : `https://www.law.go.kr/lsSc.do?query=${encodeURIComponent(l.name)}`;
+
+  let articlesHtml = '';
+  if (oc && workerUrl && (l.mst || l.lawId)) {
+    const idParam = l.mst ? `MST=${encodeURIComponent(l.mst)}` : `ID=${encodeURIComponent(l.lawId)}`;
+    const rawUrl = `${LAW_API_BASE}/lawService.do?OC=${encodeURIComponent(oc)}&target=law&type=JSON&${idParam}`;
+    const url = `${workerUrl}?url=${encodeURIComponent(rawUrl)}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      console.debug('[법령 API] 본문 조회 원본 응답:', json);
+      const root = json?.Law || json?.law || json;
+      const joRaw = root?.조문 || root?.['조문단위'] || [];
+      const articles = Array.isArray(joRaw) ? joRaw : (joRaw ? [joRaw] : []);
+      articlesHtml = renderLawArticles(articles);
+    } catch(e) {
+      console.warn('[법령 본문 조회]', e.message);
+      articlesHtml = `<div style="color:var(--red);font-size:12px;padding:12px 0;">⚠️ 본문 조회 실패: ${escapeHtml(e.message)}<br>
+        <small style="opacity:.7;color:var(--dim);">위 "법제처 원문 보기" 링크를 이용해주세요.</small></div>`;
+    }
+  } else {
+    articlesHtml = '<div style="color:var(--dim);font-size:12px;padding:12px 0;">본문을 불러오려면 ⚙️ 설정에서 법제처 API 인증키와 Worker URL이 필요합니다.</div>';
+  }
+
+  const isFav = findLawFavIdx(l.mst || l.lawId) >= 0;
+  contentEl.innerHTML = `
+    <div class="re-detail-title-row">
+      <div class="re-detail-title">${l.name}</div>
+      <button class="re-watch-toggle-btn ${isFav?'active':''}" onclick="toggleLawFavorite()">
+        ${isFav ? '★ 즐겨찾기됨' : '☆ 즐겨찾기'}
+      </button>
+    </div>
+    <div class="re-detail-meta">🏛 ${l.dept||'–'} &nbsp;|&nbsp; 📅 공포 ${fmtLawDate(l.promDate)} &nbsp;|&nbsp; 시행 ${fmtLawDate(l.effDate)} ${l.kind?`&nbsp;|&nbsp; ${l.kind}`:''}</div>
+    <a href="${officialUrl}" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);text-decoration:none;display:inline-block;margin-bottom:14px;">📖 법제처 원문 보기 ↗</a>
+    <div class="re-rent-title">📜 시행일자별 개정 이력</div>
+    <div id="law-history-list"><div class="re-loading"><div class="spinner"></div></div></div>
+    <div class="re-rent-title" style="margin-top:16px;">📄 조문</div>
+    <div id="law-articles">${articlesHtml}</div>`;
+
+  loadLawHistory(l);
+}
+
+function renderLawArticles(articles) {
+  const rows = articles.map(a => {
+    const num   = pickField(a, ['조문번호','조번호']);
+    const title = pickField(a, ['조문제목','조제목']);
+    const body  = pickField(a, ['조문내용','조내용']);
+    if (!body) return '';
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:12px;font-weight:700;color:var(--bright);margin-bottom:4px;">제${num}조${title?` (${title})`:''}</div>
+      <div style="font-size:12px;color:var(--text);white-space:pre-line;line-height:1.6;">${escapeHtml(String(body))}</div>
+    </div>`;
+  }).filter(Boolean).join('');
+  return rows || '<div style="color:var(--dim);font-size:12px;padding:12px 0;">조문 내용을 불러오지 못했습니다 (API 응답 형식이 예상과 다를 수 있음). 위 "법제처 원문 보기" 링크를 이용해주세요.<br>' +
+    '<small style="opacity:.7;">개발자 도구(F12) 콘솔의 "[법령 API] 본문 조회 원본 응답" 로그를 확인해 알려주시면 수정하겠습니다.</small></div>';
+}
+
+async function loadLawHistory(l) {
+  const listEl = document.getElementById('law-history-list');
+  if (!listEl) return;
+  const oc = lawOC();
+  const workerUrl = localStorage.getItem('ns_worker_url') || '';
+  if (!oc || !workerUrl || !l.name) { listEl.innerHTML = '<div style="color:var(--dim);font-size:12px;">이력을 조회할 수 없습니다.</div>'; return; }
+
+  const rawUrl = `${LAW_API_BASE}/lawSearch.do?OC=${encodeURIComponent(oc)}&target=law&type=JSON&query=${encodeURIComponent(l.name)}&display=100`;
+  const url = `${workerUrl}?url=${encodeURIComponent(rawUrl)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const root = json?.LawSearch || json?.lawSearch || json;
+    const list = root?.law || root?.laws || [];
+    const items = Array.isArray(list) ? list : (list ? [list] : []);
+    const versions = items.map(it => ({
+      name:    pickField(it, ['법령명한글','법령명','법령약칭명']),
+      mst:     pickField(it, ['법령일련번호','MST','법령ID']),
+      effDate: pickField(it, ['시행일자']),
+      promDate:pickField(it, ['공포일자']),
+      kind:    pickField(it, ['제개정구분명','제개정구분']),
+    }))
+    .filter(v => v.name === l.name && v.effDate)
+    .sort((a,b) => String(b.effDate).localeCompare(String(a.effDate)));
+
+    if (!versions.length) {
+      listEl.innerHTML = '<div style="color:var(--dim);font-size:12px;">개정 이력 정보를 찾을 수 없습니다.</div>';
+      return;
+    }
+    const latest = versions[0];
+    listEl.innerHTML = `
+      <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">최근 개정: ${fmtLawDate(latest.effDate)} 시행 ${latest.kind?`(${latest.kind})`:''}</div>
+      <table class="re-table"><thead><tr><th>시행일자</th><th>공포일자</th><th>구분</th></tr></thead><tbody>
+        ${versions.map(v => `<tr><td>${fmtLawDate(v.effDate)}</td><td>${fmtLawDate(v.promDate)}</td><td>${v.kind||'–'}</td></tr>`).join('')}
+      </tbody></table>`;
+  } catch(e) {
+    console.warn('[법령 이력 조회]', e.message);
+    listEl.innerHTML = `<div style="color:var(--red);font-size:12px;">⚠️ 이력 조회 실패: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function toggleLawFavorite() {
+  const l = lawCurrentDetail;
+  if (!l) return;
+  const key = l.mst || l.lawId;
+  const idx = findLawFavIdx(key);
+  if (idx >= 0) {
+    lawFavorites.splice(idx, 1);
+    showToast(`☆ ${l.name} 즐겨찾기 해제됐어요.`);
+  } else {
+    lawFavorites.push({mst:l.mst, lawId:l.lawId, name:l.name, dept:l.dept, effDate:l.effDate});
+    showToast(`⭐ ${l.name} 즐겨찾기 등록됐어요.`);
+  }
+  lsSetJSON(LAW_FAV_KEY, lawFavorites);
+  // 별 표시만 갱신 (본문 재조회 없이)
+  const btn = document.querySelector('#law-detail-content .re-watch-toggle-btn');
+  if (btn) {
+    const nowFav = findLawFavIdx(key) >= 0;
+    btn.classList.toggle('active', nowFav);
+    btn.textContent = nowFav ? '★ 즐겨찾기됨' : '☆ 즐겨찾기';
+  }
+  renderLawFavList();
+}
+
+function renderLawFavList() {
+  const wrap = document.getElementById('law-fav-wrap');
+  const list = document.getElementById('law-fav-list');
+  if (!wrap || !list) return;
+  if (!lawFavorites.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  document.getElementById('law-fav-count').textContent = `${lawFavorites.length}건`;
+  list.innerHTML = lawFavorites.map((f,i) => `
+    <div class="apt-card" onclick="openLawFavorite(${i})">
+      <div class="apt-name">${f.name}</div>
+      <div class="apt-meta"><span>🏛 ${f.dept||'–'}</span><span>📅 시행 ${fmtLawDate(f.effDate)}</span></div>
+    </div>
+  `).join('');
 }
 
 /* ══════════════════════════════════════════════════════════
