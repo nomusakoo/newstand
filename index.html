@@ -4439,6 +4439,7 @@ async function loadLawDetail(l) {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
+      console.log('[법령 API] 본문 조회 원본 응답:', json);
       // 실제 응답 확인 결과: 루트 키는 "법령", 조문은 법령.조문.조문단위 배열,
       // 개정이유는 법령.제개정이유.제개정이유내용 (2026-09-03 사용자 콘솔 로그로 확인)
       const root = json?.법령 || json?.Law || json?.law || json;
@@ -4477,6 +4478,16 @@ async function loadLawDetail(l) {
 
 // 조문단위 항목의 "조문내용"은 이미 "제1조(목적) 이 법은…" 형태로 완성된 문장이고,
 // 장/절 제목("제1장 총칙")도 같은 배열에 별도 항목으로 섞여 들어있음 (2026-09-03 확인).
+// 조문 하나에 항(①②③…)이 여러 개면 조문내용에는 조 제목만 들어있고
+// 실제 문장은 하위 "항"(+그 안의 "호"/"목") 배열에 나뉘어 있는 것으로 보임.
+// 정확한 필드명을 확인 중이라 항내용/호내용/목내용 등 후보키를 방어적으로 시도.
+function collectSubUnits(unit, key, contentKeys) {
+  const raw = unit?.[key];
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map(x => ({ text: pickField(x, contentKeys), node: x })).filter(u => u.text);
+}
+
 function renderLawArticles(articles) {
   const rows = articles.map(a => {
     const body = pickField(a, ['조문내용','조내용']);
@@ -4486,7 +4497,20 @@ function renderLawArticles(articles) {
     if (isHeading) {
       return `<div style="font-size:13px;font-weight:700;color:var(--bright);margin:16px 0 6px;">${escapeHtml(text)}</div>`;
     }
-    return `<div style="font-size:12px;color:var(--text);white-space:pre-line;line-height:1.7;padding:6px 0;border-bottom:1px solid var(--border);">${escapeHtml(text)}</div>`;
+
+    const subLines = [];
+    collectSubUnits(a, '항', ['항내용']).forEach(({text: hangText, node: h}) => {
+      subLines.push(hangText.trim());
+      collectSubUnits(h, '호', ['호내용']).forEach(({text: hoText, node: ho}) => {
+        subLines.push(hoText.trim());
+        collectSubUnits(ho, '목', ['목내용']).forEach(({text: mokText}) => {
+          subLines.push(mokText.trim());
+        });
+      });
+    });
+
+    const fullText = [text, ...subLines].filter(Boolean).join('\n');
+    return `<div style="font-size:12px;color:var(--text);white-space:pre-line;line-height:1.7;padding:6px 0;border-bottom:1px solid var(--border);">${escapeHtml(fullText)}</div>`;
   }).filter(Boolean).join('');
   return rows || '<div style="color:var(--dim);font-size:12px;padding:12px 0;">조문 내용을 불러오지 못했습니다 (API 응답 형식이 예상과 다를 수 있음). 위 "법제처 원문 보기" 링크를 이용해주세요.<br>' +
     '<small style="opacity:.7;">개발자 도구(F12) 콘솔의 "[법령 API] 본문 조회 원본 응답" 로그를 확인해 알려주시면 수정하겠습니다.</small></div>';
