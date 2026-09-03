@@ -3709,7 +3709,7 @@ async function fetchRentTrades(guCode, ym, workerUrl) {
     const rawItems = json?.response?.body?.items?.item;
     if (!rawItems) return {items: [], error: null, rawCount: 0};
     const items  = Array.isArray(rawItems) ? rawItems : [rawItems];
-    if (items[0]) console.debug('[전월세 API] 원본 응답 필드 예시:', items[0]);
+    if (items[0]) console.log('[전월세 API] 원본 응답 필드 예시:', items[0]);
     const parsed = parseRentItems(items);
     setTTLCache(cacheKey, parsed);
     return {items: parsed, error: null, rawCount: items.length};
@@ -4350,7 +4350,7 @@ async function searchLaws() {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    console.debug('[법령 API] 검색 원본 응답:', json);
+    console.log('[법령 API] 검색 원본 응답:', json);
     const root = json?.LawSearch || json?.lawSearch || json;
     const list = root?.law || root?.laws || [];
     const items = Array.isArray(list) ? list : (list ? [list] : []);
@@ -4438,7 +4438,7 @@ async function loadLawDetail(l) {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      console.debug('[법령 API] 본문 조회 원본 응답:', json);
+      console.log('[법령 API] 본문 조회 원본 응답:', json);
       const root = json?.Law || json?.law || json;
       const joRaw = root?.조문 || root?.['조문단위'] || [];
       const articles = Array.isArray(joRaw) ? joRaw : (joRaw ? [joRaw] : []);
