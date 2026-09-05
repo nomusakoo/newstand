@@ -1148,7 +1148,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
   <div class="re-today-wrap">
     <div class="re-today-header">
       <span class="re-title">🏷️ 최신 실거래</span>
-      <span class="re-today-desc" id="re-today-desc">최근 10일 · 광진구</span>
+      <span class="re-today-desc" id="re-today-desc">최근 30일 · 광진구</span>
       <button class="re-today-refresh" id="re-today-refresh-btn" onclick="loadTodayTrades()">↺ 새로고침</button>
     </div>
     <!-- 거래 목록 -->
@@ -3862,7 +3862,7 @@ async function loadTodayGuTrades(code) {
   const now       = new Date();
   const workerUrl = localStorage.getItem('ns_worker_url') || '';
 
-  // 이번달 + 전월 두 달치 동시 요청 (월초에도 10일치 확보)
+  // 이번달 + 전월 두 달치 동시 요청 (월초에도 최근 30일치 대부분 확보)
   const months = [0, -1].map(offset => {
     const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
     return { year: d.getFullYear(), month: String(d.getMonth()+1).padStart(2,'0') };
@@ -3983,14 +3983,14 @@ function renderTodayTrades(trades, gu) {
     return;
   }
 
-  // 최근 10일치 필터링
+  // 최근 30일치 필터링
   const latestDate = trades[0].dealDate; // 가장 최근 거래일 (YYYYMMDD)
   const latestMs = new Date(
     parseInt(latestDate.slice(0,4)),
     parseInt(latestDate.slice(4,6)) - 1,
     parseInt(latestDate.slice(6,8))
   ).getTime();
-  const cutoffMs = latestMs - (10 * 24 * 60 * 60 * 1000); // 10일 전
+  const cutoffMs = latestMs - (30 * 24 * 60 * 60 * 1000); // 30일 전
 
   const recentTrades = trades
     .filter(t => {
@@ -4008,7 +4008,7 @@ function renderTodayTrades(trades, gu) {
   const oldestDate = recentTrades[recentTrades.length - 1]?.dealDate || latestDate;
 
   document.getElementById('re-today-desc').textContent =
-    `최근 10일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · 광진구 자양동 ${recentTrades.length}건`;
+    `최근 30일 ${fmt(oldestDate)} ~ ${fmt(latestDate)} · 광진구 자양동 ${recentTrades.length}건`;
 
   reTodayTrades    = recentTrades;
   reTodayAllTrades = trades;
