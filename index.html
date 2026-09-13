@@ -937,37 +937,6 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
 </head>
 <body>
 
-<!-- ─── 비밀번호 잠금 화면 ──────────────────────────────────── -->
-<div id="lock-screen" style="
-  display:none;position:fixed;inset:0;z-index:9999;
-  background:var(--ink);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
-">
-  <div style="text-align:center;margin-bottom:8px;">
-    <div style="font-family:var(--font-mono);font-size:28px;font-weight:700;color:var(--bright);letter-spacing:-.02em;">◉ NEWSTAND</div>
-    <div style="font-size:12px;color:var(--dim);margin-top:4px;letter-spacing:.08em;">우회의 가판대</div>
-  </div>
-  <div style="
-    background:var(--panel);border:1px solid var(--border);border-radius:12px;
-    padding:28px 32px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;
-  ">
-    <p style="font-size:13px;color:var(--dim);text-align:center;">비밀번호를 입력하세요</p>
-    <!-- 브라우저 자동완성 낚시용 가짜 필드 (화면 밖에 숨김) -->
-    <input type="password" style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;" tabindex="-1" aria-hidden="true">
-    <div id="lock-input-wrap"></div>
-    <button onclick="unlock()" style="
-      background:var(--accent);color:#fff;border:none;border-radius:6px;
-      font-size:13px;font-weight:600;padding:10px;cursor:pointer;
-      transition:opacity .15s;
-    " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-      입력
-    </button>
-    <p id="lock-error" style="font-size:11px;color:var(--red);text-align:center;display:none;">
-      비밀번호가 틀렸습니다.
-    </p>
-  </div>
-</div>
-
 <!-- ─── TICKER ─────────────────────────────────────────────── -->
 <div class="ticker-wrap">
   <div class="ticker-inner" id="ticker">
@@ -1744,30 +1713,6 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--ink);color:var
       <div style="display:flex;align-items:center;gap:8px;">
         <button onclick="resetStockList()" style="padding:6px 14px;border-radius:5px;background:rgba(255,90,90,.15);color:var(--red);border:1px solid rgba(255,90,90,.3);font-size:12px;font-weight:600;cursor:pointer;">↺ 기본값으로 초기화</button>
         <span id="stock-reset-status" style="font-size:11px;color:var(--dim);"></span>
-      </div>
-    </div>
-
-    <!-- 비밀번호 변경 섹션 -->
-    <div style="border-top:1px solid var(--border);padding-top:14px;">
-      <p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px;">🔒 비밀번호 변경</p>
-      <div class="form-group" style="margin-bottom:8px;">
-        <label>현재 비밀번호</label>
-        <input type="password" id="cfg-pw-current" placeholder="현재 비밀번호" autocomplete="off">
-      </div>
-      <div class="form-group" style="margin-bottom:8px;">
-        <label>새 비밀번호</label>
-        <input type="password" id="cfg-pw-new" placeholder="새 비밀번호" autocomplete="off">
-      </div>
-      <div class="form-group" style="margin-bottom:8px;">
-        <label>새 비밀번호 확인</label>
-        <input type="password" id="cfg-pw-confirm" placeholder="새 비밀번호 재입력" autocomplete="off">
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button onclick="changePassword()" style="
-          padding:6px 14px;border-radius:5px;background:var(--muted);color:var(--bright);
-          font-size:12px;font-weight:600;border:none;cursor:pointer;
-        ">변경</button>
-        <span id="pw-status" style="font-size:11px;color:var(--dim);"></span>
       </div>
     </div>
 
@@ -3378,93 +3323,6 @@ async function renderFinanceBar() {
 function scheduleFinance() {
   renderFinanceBar();
   setInterval(renderFinanceBar, 5 * 60 * 1000);
-}
-
-/* ── 비밀번호 ─────────────────────────────────────────────── */
-const DEFAULT_PW  = '1234';
-const PW_LS_KEY   = 'ns_pw_hash';
-const SESSION_KEY = 'ns_session';  // sessionStorage — 탭 닫으면 초기화
-
-async function sha256(str) {
-  const buf = await crypto.subtle.digest(
-    'SHA-256', new TextEncoder().encode(str)
-  );
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-async function getPwHash() {
-  const stored = localStorage.getItem(PW_LS_KEY);
-  if (stored) return stored;
-  // 초기 비밀번호 1234를 해시로 저장
-  const h = await sha256(DEFAULT_PW);
-  localStorage.setItem(PW_LS_KEY, h);
-  return h;
-}
-
-function createLockInput() {
-  const wrap = document.getElementById('lock-input-wrap');
-  wrap.innerHTML = '';
-  const inp = document.createElement('input');
-  inp.type        = 'password';
-  inp.placeholder = '비밀번호';
-  inp.id          = 'lock-input';
-  inp.setAttribute('autocomplete', 'new-password');
-  inp.style.cssText = `
-    background:var(--ink);border:1px solid var(--border);border-radius:6px;
-    color:var(--bright);font-size:15px;padding:10px 14px;outline:none;
-    width:100%;text-align:center;letter-spacing:.2em;transition:border-color .15s;
-    box-sizing:border-box;
-  `;
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
-  wrap.appendChild(inp);
-  // 브라우저가 자동완성 채울 틈 없이 바로 포커스
-  requestAnimationFrame(() => { inp.value = ''; inp.focus(); });
-}
-
-async function unlock() {
-  const inp    = document.getElementById('lock-input');
-  const errEl  = document.getElementById('lock-error');
-  if (!inp || !inp.value) return;
-  const inputHash  = await sha256(inp.value);
-  const storedHash = await getPwHash();
-  if (inputHash === storedHash) {
-    sessionStorage.setItem(SESSION_KEY, '1');
-    document.getElementById('lock-screen').style.display = 'none';
-    errEl.style.display = 'none';
-    initApp();
-  } else {
-    errEl.style.display = 'block';
-    createLockInput(); // 틀리면 입력창 새로 생성 (값 초기화)
-  }
-}
-
-async function changePassword() {
-  const cur     = document.getElementById('cfg-pw-current').value;
-  const nw      = document.getElementById('cfg-pw-new').value;
-  const confirm = document.getElementById('cfg-pw-confirm').value;
-  const status  = document.getElementById('pw-status');
-
-  if (!cur || !nw || !confirm) {
-    status.textContent = '❌ 모든 항목을 입력하세요'; status.style.color='var(--red)'; return;
-  }
-  if (nw !== confirm) {
-    status.textContent = '❌ 새 비밀번호가 일치하지 않아요'; status.style.color='var(--red)'; return;
-  }
-  if (nw.length < 4) {
-    status.textContent = '❌ 4자 이상 입력하세요'; status.style.color='var(--red)'; return;
-  }
-  const curHash = await sha256(cur);
-  const stored  = await getPwHash();
-  if (curHash !== stored) {
-    status.textContent = '❌ 현재 비밀번호가 틀렸습니다'; status.style.color='var(--red)'; return;
-  }
-  const newHash = await sha256(nw);
-  localStorage.setItem(PW_LS_KEY, newHash);
-  status.textContent = '✅ 비밀번호가 변경됐습니다';
-  status.style.color = 'var(--green)';
-  ['cfg-pw-current','cfg-pw-new','cfg-pw-confirm'].forEach(id =>
-    document.getElementById(id).value = ''
-  );
 }
 
 /* ── INIT ────────────────────────────────────────────────── */
@@ -7362,17 +7220,7 @@ function setRePyeong(p) { rePyeong=p; renderAptDetail(); }
 
 
 
-// 비밀번호 게이트
-(async function gate() {
-  if (sessionStorage.getItem(SESSION_KEY) === '1') {
-    document.getElementById('lock-screen').style.display = 'none';
-    initApp();
-  } else {
-    document.getElementById('lock-screen').style.display = 'flex';
-    await getPwHash();
-    createLockInput(); // 동적 생성 — 자동완성 원천 차단
-  }
-})();
+initApp();
 </script>
 </body>
 </html>
